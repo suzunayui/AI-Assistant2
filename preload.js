@@ -11,6 +11,12 @@ contextBridge.exposeInMainWorld("chatApi", {
   getVoicevoxSpeakers: () => ipcRenderer.invoke("voicevox:getSpeakers"),
   openaiRespond: (apiKey, prompt, persona) =>
     ipcRenderer.invoke("openai:respond", { apiKey, prompt, persona }),
+  settingsEnsureFile: () => ipcRenderer.invoke("settings:ensureFile"),
+  settingsGetPath: () => ipcRenderer.invoke("settings:getPath"),
+  settingsOpenFolder: () => ipcRenderer.invoke("settings:openFolder"),
+  settingsSaveDefault: (data) => ipcRenderer.invoke("settings:saveDefault", data),
+  settingsExport: (data) => ipcRenderer.invoke("settings:export", data),
+  settingsImport: () => ipcRenderer.invoke("settings:import"),
   onDbPath: (cb) => {
     const handler = (_evt, payload) => cb(payload);
     ipcRenderer.on("chat:dbPath", handler);

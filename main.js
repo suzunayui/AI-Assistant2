@@ -3,7 +3,8 @@
 
 const path = require("path");
 const { spawn } = require("child_process");
-const { app, BrowserWindow, ipcMain } = require("electron");
+const fs = require("fs");
+const { app, BrowserWindow, ipcMain, dialog, shell } = require("electron");
 
 let mainWindow = null;
 let worker = null;
@@ -53,6 +54,25 @@ function extractOpenAiOutputText(json) {
     }
   }
   return parts.join("\n").trim();
+}
+
+function getSettingsFilePath() {
+  return path.join(app.getPath("userData"), "settings.json");
+}
+
+function safeReadJsonFile(filePath) {
+  const raw = fs.readFileSync(filePath, "utf8");
+  const json = JSON.parse(raw);
+  if (!json || typeof json !== "object") return {};
+  return json;
+}
+
+function safeWriteJsonFile(filePath, obj) {
+  const dir = path.dirname(filePath);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmp = `${filePath}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(obj, null, 2), "utf8");
+  fs.renameSync(tmp, filePath);
 }
 
 function createWindow() {
@@ -129,6 +149,75 @@ ipcMain.handle("voicevox:getSpeakers", async () => {
       ok: false,
       error: e && e.message ? e.message : String(e),
     };
+  }
+});
+
+ipcMain.handle("settings:getPath", () => ({ ok: true, path: getSettingsFilePath() }));
+
+ipcMain.handle("settings:ensureFile", () => {
+  try {
+    const p = getSettingsFilePath();
+    if (!fs.existsSync(p)) safeWriteJsonFile(p, { version: 1, data: {} });
+    return { ok: true, path: p };
+  } catch (e) {
+    return { ok: false, error: e && e.message ? e.message : String(e) };
+  }
+});
+
+ipcMain.handle("settings:openFolder", () => {
+  try {
+    const p = getSettingsFilePath();
+    shell.showItemInFolder(p);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e && e.message ? e.message : String(e) };
+  }
+});
+
+ipcMain.handle("settings:saveDefault", async (_evt, payload) => {
+  try {
+    const p = getSettingsFilePath();
+    const data = payload && typeof payload === "object" ? payload : {};
+    safeWriteJsonFile(p, { version: 1, savedAt: new Date().toISOString(), data });
+    return { ok: true, path: p };
+  } catch (e) {
+    return { ok: false, error: e && e.message ? e.message : String(e) };
+  }
+});
+
+ipcMain.handle("settings:export", async (_evt, payload) => {
+  try {
+    if (!mainWindow) return { ok: false, error: "window not ready" };
+    const p = getSettingsFilePath();
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: "設定をエクスポート",
+      defaultPath: p,
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (canceled || !filePath) return { ok: false, canceled: true };
+    const data = payload && typeof payload === "object" ? payload : {};
+    safeWriteJsonFile(filePath, { version: 1, exportedAt: new Date().toISOString(), data });
+    return { ok: true, path: filePath };
+  } catch (e) {
+    return { ok: false, error: e && e.message ? e.message : String(e) };
+  }
+});
+
+ipcMain.handle("settings:import", async () => {
+  try {
+    if (!mainWindow) return { ok: false, error: "window not ready" };
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+      title: "設定をインポート",
+      properties: ["openFile"],
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (canceled || !filePaths || filePaths.length === 0) return { ok: false, canceled: true };
+    const filePath = filePaths[0];
+    const json = safeReadJsonFile(filePath);
+    const data = json && typeof json.data === "object" ? json.data : {};
+    return { ok: true, path: filePath, data };
+  } catch (e) {
+    return { ok: false, error: e && e.message ? e.message : String(e) };
   }
 });
 

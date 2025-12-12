@@ -384,6 +384,9 @@ body {
   margin-top: 10px;
   display: grid;
   gap: 10px;
+  max-height: 60vh;
+  overflow: auto;
+  padding-right: 6px;
 }
 
 .emojiRow {

@@ -17,6 +17,11 @@ const ttsWordReplacementsHelpEl = document.getElementById("ttsWordReplacementsHe
 const ttsNgWordsEl = document.getElementById("ttsNgWords");
 const ttsNgWordsHelpEl = document.getElementById("ttsNgWordsHelp");
 const emojiSettingsListEl = document.getElementById("emojiSettingsList");
+const settingsFilePathEl = document.getElementById("settingsFilePath");
+const settingsSaveStatusEl = document.getElementById("settingsSaveStatus");
+const openSettingsFolderBtn = document.getElementById("openSettingsFolder");
+const exportSettingsBtn = document.getElementById("exportSettings");
+const importSettingsBtn = document.getElementById("importSettings");
 const inputEl = document.getElementById("inputStr");
 const saveInputBtn = document.getElementById("saveInputBtn");
 const startBtn = document.getElementById("startBtn");
@@ -30,12 +35,14 @@ const tabBtnVoicevoxSettings = document.getElementById("tabBtnVoicevoxSettings")
 const tabBtnChatgptSettings = document.getElementById("tabBtnChatgptSettings");
 const tabBtnCommentSettings = document.getElementById("tabBtnCommentSettings");
 const tabBtnEmojiSettings = document.getElementById("tabBtnEmojiSettings");
+const tabBtnSettingsSave = document.getElementById("tabBtnSettingsSave");
 const tabControls = document.getElementById("tab-controls");
 const tabComments = document.getElementById("tab-comments");
 const tabVoicevoxSettings = document.getElementById("tab-voicevox-settings");
 const tabChatgptSettings = document.getElementById("tab-chatgpt-settings");
 const tabCommentSettings = document.getElementById("tab-comment-settings");
 const tabEmojiSettings = document.getElementById("tab-emoji-settings");
+const tabSettingsSave = document.getElementById("tab-settings-save");
 
 const state = {
   running: false,
@@ -57,7 +64,88 @@ const state = {
   openaiApiKey: "",
   chatgptPersona: "",
   respondedIds: new Set(),
+  settingsAutoSaveTimer: 0,
 };
+
+const SETTINGS_KEYS = [
+  "voicevoxSpeakerTts",
+  "voicevoxSpeakerChatgpt",
+  "openaiApiKey",
+  "chatgptPersona",
+  "chatgptTriggerKeywords",
+  "savedInputStr",
+  "blockedAuthors",
+  "authorAliases",
+  "ttsWordReplacements",
+  "ttsNgWords",
+  "emojiCatalog",
+  "emojiReadings",
+  "activeTab",
+];
+
+function setSetting(key, value) {
+  localStorage.setItem(key, value);
+  scheduleSettingsAutoSave();
+}
+
+function getSettingsSnapshot() {
+  const data = {};
+  for (const key of SETTINGS_KEYS) {
+    const v = localStorage.getItem(key);
+    if (v !== null) data[key] = v;
+  }
+  return data;
+}
+
+async function saveSettingsToDefaultFile() {
+  if (!window.chatApi?.settingsSaveDefault) return;
+  try {
+    const data = getSettingsSnapshot();
+    const res = await window.chatApi.settingsSaveDefault(data);
+    if (settingsSaveStatusEl && res && res.ok) {
+      settingsSaveStatusEl.textContent = "保存しました";
+    }
+  } catch (e) {
+    if (settingsSaveStatusEl) settingsSaveStatusEl.textContent = `保存失敗: ${String(e)}`;
+  }
+}
+
+function scheduleSettingsAutoSave() {
+  if (!window.chatApi?.settingsSaveDefault) return;
+  if (state.settingsAutoSaveTimer) clearTimeout(state.settingsAutoSaveTimer);
+  state.settingsAutoSaveTimer = setTimeout(() => {
+    state.settingsAutoSaveTimer = 0;
+    saveSettingsToDefaultFile().catch(() => {});
+  }, 500);
+}
+
+function applySettingsSnapshot(data) {
+  if (!data || typeof data !== "object") return;
+  for (const key of SETTINGS_KEYS) {
+    if (!(key in data)) continue;
+    const v = data[key];
+    if (typeof v === "string") localStorage.setItem(key, v);
+  }
+  scheduleSettingsAutoSave();
+  // Refresh in-memory state/UI
+  loadBlockedAuthors();
+  loadAuthorAliases();
+  loadEmojiCatalog();
+  loadEmojiReadings();
+  loadTtsReplacements();
+  loadTtsNgWords();
+  loadChatgptTriggerKeywords();
+  loadOpenAiApiKey();
+  loadChatgptPersona();
+  renderEmojiSettingsList();
+
+  if (voicevoxSpeakerTtsEl) voicevoxSpeakerTtsEl.value = (localStorage.getItem("voicevoxSpeakerTts") || "").trim();
+  if (voicevoxSpeakerChatgptEl)
+    voicevoxSpeakerChatgptEl.value = (localStorage.getItem("voicevoxSpeakerChatgpt") || "").trim();
+
+  const tab = localStorage.getItem("activeTab") || "comments";
+  setActiveTab(tab);
+}
 
 function normalizeAuthor(author) {
   return String(author || "").trim();
@@ -82,7 +170,7 @@ function loadAuthorAliases() {
 
 function saveAuthorAliases() {
   const obj = Object.fromEntries(state.authorAliases.entries());
-  localStorage.setItem("authorAliases", JSON.stringify(obj));
+  setSetting("authorAliases", JSON.stringify(obj));
 }
 
 function normalizeEmojiShortcode(s) {
@@ -114,7 +202,7 @@ function saveEmojiCatalog() {
   for (const [code, v] of state.emojiCatalog.entries()) {
     obj[code] = { url: v?.url || "", lastSeenMs: v?.lastSeenMs || 0 };
   }
-  localStorage.setItem("emojiCatalog", JSON.stringify(obj));
+  setSetting("emojiCatalog", JSON.stringify(obj));
 }
 
 function loadEmojiReadings() {
@@ -136,7 +224,7 @@ function loadEmojiReadings() {
 
 function saveEmojiReadings() {
   const obj = Object.fromEntries(state.emojiReadings.entries());
-  localStorage.setItem("emojiReadings", JSON.stringify(obj));
+  setSetting("emojiReadings", JSON.stringify(obj));
 }
 
 function upsertSeenEmoji(shortcode, url) {
@@ -226,7 +314,7 @@ function loadBlockedAuthors() {
 }
 
 function saveBlockedAuthors() {
-  localStorage.setItem("blockedAuthors", JSON.stringify([...state.blockedAuthors]));
+  setSetting("blockedAuthors", JSON.stringify([...state.blockedAuthors]));
 }
 
 function isAuthorBlocked(author) {
@@ -256,7 +344,7 @@ function loadChatgptPersona() {
   let stored = localStorage.getItem("chatgptPersona");
   if (stored === null) {
     stored = defaultPersona;
-    localStorage.setItem("chatgptPersona", stored);
+    setSetting("chatgptPersona", stored);
   }
   const raw = String(stored || "");
   const v = raw.trim().slice(0, 2000);
@@ -495,7 +583,7 @@ function enqueueSpeakComment(comment, receivedAtMs) {
         await playWavArrayBuffer(wav, abortCtrl.signal);
         if (myGen !== state.ttsGeneration || abortCtrl.signal.aborted) return;
 
-        const triggerKw = findChatgptTriggerKeyword(comment?.text);
+        const triggerKw = findChatgptTriggerKeyword(getRawCommentText(comment));
         if (!triggerKw) return;
         if (!comment?.id) return;
         if (state.respondedIds.has(comment.id)) return;
@@ -538,7 +626,8 @@ function setActiveTab(tabName) {
     tabName === "voicevox" ||
     tabName === "chatgpt" ||
     tabName === "commentSettings" ||
-    tabName === "emojiSettings"
+    tabName === "emojiSettings" ||
+    tabName === "settingsSave"
       ? tabName
       : "comments";
   const isComments = tab === "comments";
@@ -546,12 +635,14 @@ function setActiveTab(tabName) {
   const isChatgpt = tab === "chatgpt";
   const isCommentSettings = tab === "commentSettings";
   const isEmojiSettings = tab === "emojiSettings";
+  const isSettingsSave = tab === "settingsSave";
 
   tabBtnComments?.classList.toggle("active", isComments);
   tabBtnVoicevoxSettings?.classList.toggle("active", isVoicevox);
   tabBtnChatgptSettings?.classList.toggle("active", isChatgpt);
   tabBtnCommentSettings?.classList.toggle("active", isCommentSettings);
   tabBtnEmojiSettings?.classList.toggle("active", isEmojiSettings);
+  tabBtnSettingsSave?.classList.toggle("active", isSettingsSave);
 
   tabControls?.classList.toggle("hidden", !isComments);
   tabComments?.classList.toggle("hidden", !isComments);
@@ -559,8 +650,9 @@ function setActiveTab(tabName) {
   tabChatgptSettings?.classList.toggle("hidden", !isChatgpt);
   tabCommentSettings?.classList.toggle("hidden", !isCommentSettings);
   tabEmojiSettings?.classList.toggle("hidden", !isEmojiSettings);
+  tabSettingsSave?.classList.toggle("hidden", !isSettingsSave);
 
-  localStorage.setItem("activeTab", tab);
+  setSetting("activeTab", tab);
 }
 
 function setStatus(text, kind = "idle") {
@@ -791,7 +883,7 @@ function loadChatgptTriggerKeywords() {
   let raw;
   if (saved === null && legacy === null) {
     raw = defaultKeywords;
-    localStorage.setItem("chatgptTriggerKeywords", raw);
+    setSetting("chatgptTriggerKeywords", raw);
   } else {
     raw = saved;
     if ((!raw || !raw.trim()) && legacy) raw = legacy;
@@ -856,7 +948,7 @@ function appendRow(row) {
   if (!row || !row.id) return;
   if (state.seenIds.has(row.id)) return;
   state.seenIds.add(row.id);
-  const triggerKw = findChatgptTriggerKeyword(row.text);
+  const triggerKw = findChatgptTriggerKeyword(getRawCommentText(row));
   const decorated = triggerKw ? { ...row, chatgpt_trigger: true } : row;
   feedEl.insertAdjacentHTML("beforeend", formatRow(decorated));
   const active = document.activeElement;
@@ -919,6 +1011,7 @@ feedEl?.addEventListener("click", (e) => {
   if (state.blockedAuthors.has(author)) state.blockedAuthors.delete(author);
   else state.blockedAuthors.add(author);
   saveBlockedAuthors();
+  scheduleSettingsAutoSave();
   updateBlockUiForAuthor(author);
 });
 
@@ -928,6 +1021,7 @@ feedEl?.addEventListener("input", (e) => {
   const author = normalizeAuthor(el.dataset.author);
   if (!author) return;
   setAuthorAlias(author, el.value);
+  scheduleSettingsAutoSave();
 });
 
 emojiSettingsListEl?.addEventListener("input", (e) => {
@@ -935,6 +1029,7 @@ emojiSettingsListEl?.addEventListener("input", (e) => {
   if (!el || !el.classList || !el.classList.contains("emojiReadingInput")) return;
   const code = String(el.dataset.emoji || "").trim();
   setEmojiReading(code, el.value);
+  scheduleSettingsAutoSave();
 });
 
 saveInputBtn?.addEventListener("click", () => {
@@ -943,7 +1038,7 @@ saveInputBtn?.addEventListener("click", () => {
     setStatus("保存する値が空です", "error");
     return;
   }
-  localStorage.setItem("savedInputStr", v);
+  setSetting("savedInputStr", v);
   setStatus("入力を保存しました", "idle");
 });
 
@@ -996,12 +1091,14 @@ window.chatApi.onStopped(() => {
   tabBtnChatgptSettings?.addEventListener("click", () => setActiveTab("chatgpt"));
   tabBtnCommentSettings?.addEventListener("click", () => setActiveTab("commentSettings"));
   tabBtnEmojiSettings?.addEventListener("click", () => setActiveTab("emojiSettings"));
+  tabBtnSettingsSave?.addEventListener("click", () => setActiveTab("settingsSave"));
   const saved = localStorage.getItem("activeTab");
   setActiveTab(
     saved === "voicevox" ||
       saved === "chatgpt" ||
       saved === "commentSettings" ||
-      saved === "emojiSettings"
+      saved === "emojiSettings" ||
+      saved === "settingsSave"
       ? saved
       : "comments"
   );
@@ -1011,47 +1108,46 @@ window.chatApi.onStopped(() => {
   // Back-compat: migrate old single selection if present.
   const legacy = localStorage.getItem("voicevoxSpeaker") || "";
   if (legacy && !localStorage.getItem("voicevoxSpeakerTts")) {
-    localStorage.setItem("voicevoxSpeakerTts", legacy);
+    setSetting("voicevoxSpeakerTts", legacy);
   }
   if (legacy && !localStorage.getItem("voicevoxSpeakerChatgpt")) {
-    localStorage.setItem("voicevoxSpeakerChatgpt", legacy);
+    setSetting("voicevoxSpeakerChatgpt", legacy);
   }
 
-  const savedTts = localStorage.getItem("voicevoxSpeakerTts") || "";
-  const savedChatgpt = localStorage.getItem("voicevoxSpeakerChatgpt") || "";
+  // Note: values may change via import; read localStorage when applying.
 
   loadOpenAiApiKey();
   openaiApiKeyEl?.addEventListener("input", () => {
     const raw = String(openaiApiKeyEl?.value || "").trim();
-    localStorage.setItem("openaiApiKey", raw);
+    setSetting("openaiApiKey", raw);
     loadOpenAiApiKey();
   });
 
   loadChatgptPersona();
   chatgptPersonaEl?.addEventListener("input", () => {
     const raw = String(chatgptPersonaEl?.value || "");
-    localStorage.setItem("chatgptPersona", raw);
+    setSetting("chatgptPersona", raw);
     loadChatgptPersona();
   });
 
   loadChatgptTriggerKeywords();
   chatgptTriggerKeywordsEl?.addEventListener("input", () => {
     const raw = String(chatgptTriggerKeywordsEl?.value || "");
-    localStorage.setItem("chatgptTriggerKeywords", raw);
+    setSetting("chatgptTriggerKeywords", raw);
     loadChatgptTriggerKeywords();
   });
 
   loadTtsReplacements();
   ttsWordReplacementsEl?.addEventListener("input", () => {
     const raw = String(ttsWordReplacementsEl?.value || "");
-    localStorage.setItem("ttsWordReplacements", raw);
+    setSetting("ttsWordReplacements", raw);
     loadTtsReplacements();
   });
 
   loadTtsNgWords();
   ttsNgWordsEl?.addEventListener("input", () => {
     const raw = String(ttsNgWordsEl?.value || "");
-    localStorage.setItem("ttsNgWords", raw);
+    setSetting("ttsNgWords", raw);
     loadTtsNgWords();
   });
 
@@ -1111,11 +1207,13 @@ window.chatApi.onStopped(() => {
 
     if (voicevoxSpeakerTtsEl) {
       voicevoxSpeakerTtsEl.innerHTML = html;
-      if (savedTts) voicevoxSpeakerTtsEl.value = savedTts;
+      const cur = (localStorage.getItem("voicevoxSpeakerTts") || "").trim();
+      if (cur) voicevoxSpeakerTtsEl.value = cur;
     }
     if (voicevoxSpeakerChatgptEl) {
       voicevoxSpeakerChatgptEl.innerHTML = html;
-      if (savedChatgpt) voicevoxSpeakerChatgptEl.value = savedChatgpt;
+      const cur = (localStorage.getItem("voicevoxSpeakerChatgpt") || "").trim();
+      if (cur) voicevoxSpeakerChatgptEl.value = cur;
     }
     if (voicevoxStatusEl) voicevoxStatusEl.textContent = "VOICEVOX話者を取得しました";
   }
@@ -1125,16 +1223,55 @@ window.chatApi.onStopped(() => {
   });
 
   voicevoxSpeakerTtsEl?.addEventListener("change", () => {
-    localStorage.setItem("voicevoxSpeakerTts", (voicevoxSpeakerTtsEl?.value || "").trim());
+    setSetting("voicevoxSpeakerTts", (voicevoxSpeakerTtsEl?.value || "").trim());
   });
   voicevoxSpeakerChatgptEl?.addEventListener("change", () => {
-    localStorage.setItem(
-      "voicevoxSpeakerChatgpt",
-      (voicevoxSpeakerChatgptEl?.value || "").trim()
-    );
+    setSetting("voicevoxSpeakerChatgpt", (voicevoxSpeakerChatgptEl?.value || "").trim());
   });
 
   refreshVoicevoxSpeakers().catch((e) => console.error("voicevox init error:", e));
+})();
+
+(function initSettingsSaveTab() {
+  async function refreshPath() {
+    if (!window.chatApi?.settingsGetPath) return;
+    const res = await window.chatApi.settingsGetPath();
+    if (res && res.ok && settingsFilePathEl) settingsFilePathEl.textContent = res.path || "";
+  }
+
+  openSettingsFolderBtn?.addEventListener("click", async () => {
+    const res = await window.chatApi.settingsOpenFolder?.();
+    if (settingsSaveStatusEl) {
+      settingsSaveStatusEl.textContent =
+        res && res.ok ? "フォルダを開きました" : `失敗: ${res?.error || "error"}`;
+    }
+  });
+
+  exportSettingsBtn?.addEventListener("click", async () => {
+    const data = getSettingsSnapshot();
+    const res = await window.chatApi.settingsExport?.(data);
+    if (settingsSaveStatusEl) {
+      if (res && res.ok) settingsSaveStatusEl.textContent = `エクスポートしました: ${res.path}`;
+      else if (res && res.canceled) settingsSaveStatusEl.textContent = "キャンセルしました";
+      else settingsSaveStatusEl.textContent = `失敗: ${res?.error || "error"}`;
+    }
+    await refreshPath();
+  });
+
+  importSettingsBtn?.addEventListener("click", async () => {
+    const res = await window.chatApi.settingsImport?.();
+    if (res && res.ok && res.data) {
+      applySettingsSnapshot(res.data);
+      if (settingsSaveStatusEl) settingsSaveStatusEl.textContent = `インポートしました: ${res.path}`;
+    } else if (res && res.canceled) {
+      if (settingsSaveStatusEl) settingsSaveStatusEl.textContent = "キャンセルしました";
+    } else {
+      if (settingsSaveStatusEl) settingsSaveStatusEl.textContent = `失敗: ${res?.error || "error"}`;
+    }
+    await refreshPath();
+  });
+
+  refreshPath().catch(() => {});
 })();
 
 (async function init() {
@@ -1143,6 +1280,11 @@ window.chatApi.onStopped(() => {
   loadEmojiCatalog();
   loadEmojiReadings();
   renderEmojiSettingsList();
+  await window.chatApi.settingsEnsureFile?.();
+  await window.chatApi.settingsGetPath?.().then((res) => {
+    if (res && res.ok && settingsFilePathEl) settingsFilePathEl.textContent = res.path || "";
+  });
+  scheduleSettingsAutoSave();
   ensureVoicevoxAvailabilityLoop().catch((e) => console.error("voicevox availability loop:", e));
   await refreshDbPath();
   const savedInputStr = localStorage.getItem("savedInputStr") || "";

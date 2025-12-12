@@ -28,6 +28,9 @@
         <button id="tabBtnEmojiSettings" class="tab" type="button" data-tab="emojiSettings">
           絵文字設定
         </button>
+        <button id="tabBtnSettingsSave" class="tab" type="button" data-tab="settingsSave">
+          設定保存
+        </button>
       </nav>
 
       <section id="tab-controls" class="controls">
@@ -185,6 +188,28 @@
             配信コメントで1回でも出現した絵文字がここに出ます。読み方を入れると読み上げに反映されます。
           </div>
           <div id="emojiSettingsList" class="emojiList"></div>
+        </div>
+      </section>
+
+      <section id="tab-settings-save" class="panel hidden">
+        <div class="panelHeader">設定保存</div>
+        <div class="panelBody">
+          <div class="settingRow">
+            <div class="settingLabel">設定ファイル</div>
+            <div class="settingValue" style="align-items: stretch; flex-direction: column">
+              <div id="settingsFilePath" class="mono"></div>
+              <div id="settingsSaveStatus" class="settingHelp" style="margin-top: 0"></div>
+            </div>
+          </div>
+
+          <div class="settingRow">
+            <div class="settingLabel">操作</div>
+            <div class="settingValue" style="flex-wrap: wrap">
+              <button id="openSettingsFolder" class="btn" type="button">場所を開く</button>
+              <button id="exportSettings" class="btn" type="button">エクスポート</button>
+              <button id="importSettings" class="btn" type="button">インポート</button>
+            </div>
+          </div>
         </div>
       </section>
     </div>
