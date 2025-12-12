@@ -367,3 +367,61 @@ body {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+.emojiImg {
+  width: 18px;
+  height: 18px;
+  vertical-align: -3px;
+}
+
+.stickerImg {
+  width: 60px;
+  height: 60px;
+  vertical-align: -6px;
+}
+
+.emojiList {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.emojiRow {
+  display: grid;
+  grid-template-columns: 28px 1fr 200px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.emojiThumb {
+  width: 28px;
+  height: 28px;
+}
+
+.emojiCode {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.emojiReadingInput {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  outline: none;
+}
+.emojiReadingInput:focus {
+  border-color: rgba(110, 168, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(110, 168, 255, 0.12);
+}

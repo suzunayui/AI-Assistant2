@@ -25,6 +25,9 @@
         <button id="tabBtnCommentSettings" class="tab" type="button" data-tab="commentSettings">
           コメント設定
         </button>
+        <button id="tabBtnEmojiSettings" class="tab" type="button" data-tab="emojiSettings">
+          絵文字設定
+        </button>
       </nav>
 
       <section id="tab-controls" class="controls">
@@ -172,6 +175,16 @@
               <div id="ttsNgWordsHelp" class="settingHelp" style="margin-top: 0"></div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section id="tab-emoji-settings" class="panel hidden">
+        <div class="panelHeader">絵文字設定</div>
+        <div class="panelBody">
+          <div class="settingHelp" style="margin-top: 0">
+            配信コメントで1回でも出現した絵文字がここに出ます。読み方を入れると読み上げに反映されます。
+          </div>
+          <div id="emojiSettingsList" class="emojiList"></div>
         </div>
       </section>
     </div>

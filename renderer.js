@@ -16,6 +16,7 @@ const ttsWordReplacementsEl = document.getElementById("ttsWordReplacements");
 const ttsWordReplacementsHelpEl = document.getElementById("ttsWordReplacementsHelp");
 const ttsNgWordsEl = document.getElementById("ttsNgWords");
 const ttsNgWordsHelpEl = document.getElementById("ttsNgWordsHelp");
+const emojiSettingsListEl = document.getElementById("emojiSettingsList");
 const inputEl = document.getElementById("inputStr");
 const saveInputBtn = document.getElementById("saveInputBtn");
 const startBtn = document.getElementById("startBtn");
@@ -28,11 +29,13 @@ const tabBtnComments = document.getElementById("tabBtnComments");
 const tabBtnVoicevoxSettings = document.getElementById("tabBtnVoicevoxSettings");
 const tabBtnChatgptSettings = document.getElementById("tabBtnChatgptSettings");
 const tabBtnCommentSettings = document.getElementById("tabBtnCommentSettings");
+const tabBtnEmojiSettings = document.getElementById("tabBtnEmojiSettings");
 const tabControls = document.getElementById("tab-controls");
 const tabComments = document.getElementById("tab-comments");
 const tabVoicevoxSettings = document.getElementById("tab-voicevox-settings");
 const tabChatgptSettings = document.getElementById("tab-chatgpt-settings");
 const tabCommentSettings = document.getElementById("tab-comment-settings");
+const tabEmojiSettings = document.getElementById("tab-emoji-settings");
 
 const state = {
   running: false,
@@ -42,6 +45,8 @@ const state = {
   authorAliases: new Map(),
   ttsWordReplacements: [],
   ttsNgWords: [],
+  emojiCatalog: new Map(), // shortcode => { url, lastSeenMs }
+  emojiReadings: new Map(), // shortcode => reading
   appStartedAt: Date.now(),
   voicevoxAvailable: false,
   ttsChain: Promise.resolve(),
@@ -78,6 +83,115 @@ function loadAuthorAliases() {
 function saveAuthorAliases() {
   const obj = Object.fromEntries(state.authorAliases.entries());
   localStorage.setItem("authorAliases", JSON.stringify(obj));
+}
+
+function normalizeEmojiShortcode(s) {
+  const v = String(s || "").trim();
+  if (!v) return "";
+  if (v.startsWith(":") && v.endsWith(":") && v.length >= 3) return v;
+  return v;
+}
+
+function loadEmojiCatalog() {
+  state.emojiCatalog = new Map();
+  const raw = localStorage.getItem("emojiCatalog");
+  if (!raw) return;
+  try {
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj !== "object") return;
+    for (const [k, v] of Object.entries(obj)) {
+      const code = normalizeEmojiShortcode(k);
+      if (!code) continue;
+      const url = String(v?.url || "").trim();
+      const lastSeenMs = Number.isFinite(v?.lastSeenMs) ? v.lastSeenMs : 0;
+      state.emojiCatalog.set(code, { url, lastSeenMs });
+    }
+  } catch (_) {}
+}
+
+function saveEmojiCatalog() {
+  const obj = {};
+  for (const [code, v] of state.emojiCatalog.entries()) {
+    obj[code] = { url: v?.url || "", lastSeenMs: v?.lastSeenMs || 0 };
+  }
+  localStorage.setItem("emojiCatalog", JSON.stringify(obj));
+}
+
+function loadEmojiReadings() {
+  state.emojiReadings = new Map();
+  const raw = localStorage.getItem("emojiReadings");
+  if (!raw) return;
+  try {
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj !== "object") return;
+    for (const [k, v] of Object.entries(obj)) {
+      const code = normalizeEmojiShortcode(k);
+      const reading = String(v || "").trim();
+      if (!code) continue;
+      if (!reading) continue;
+      state.emojiReadings.set(code, reading);
+    }
+  } catch (_) {}
+}
+
+function saveEmojiReadings() {
+  const obj = Object.fromEntries(state.emojiReadings.entries());
+  localStorage.setItem("emojiReadings", JSON.stringify(obj));
+}
+
+function upsertSeenEmoji(shortcode, url) {
+  const code = normalizeEmojiShortcode(shortcode);
+  if (!code) return false;
+  const now = Date.now();
+  const current = state.emojiCatalog.get(code);
+  const nextUrl = String(url || (current?.url || "")).trim();
+  const changed = !current || current.url !== nextUrl;
+  state.emojiCatalog.set(code, { url: nextUrl, lastSeenMs: now });
+  return changed;
+}
+
+function setEmojiReading(shortcode, reading) {
+  const code = normalizeEmojiShortcode(shortcode);
+  if (!code) return;
+  const v = String(reading || "").trim();
+  if (!v) state.emojiReadings.delete(code);
+  else state.emojiReadings.set(code, v);
+  saveEmojiReadings();
+}
+
+function renderEmojiSettingsList() {
+  if (!emojiSettingsListEl) return;
+  const items = [...state.emojiCatalog.entries()];
+  items.sort((a, b) => (b[1]?.lastSeenMs || 0) - (a[1]?.lastSeenMs || 0));
+  const html = items
+    .map(([code, info]) => {
+      const url = String(info?.url || "").trim();
+      const reading = state.emojiReadings.get(code) || "";
+      const img = url
+        ? `<img class="emojiThumb" src="${escapeHtml(url)}" alt="${escapeHtml(code)}" />`
+        : `<div class="emojiThumb"></div>`;
+      return `
+        <div class="emojiRow" data-emoji="${escapeHtml(code)}">
+          ${img}
+          <div class="emojiCode">${escapeHtml(code)}</div>
+          <input class="emojiReadingInput" type="text" placeholder="読み方（例: こもち）" value="${escapeHtml(
+            reading
+          )}" data-action="emoji-reading" data-emoji="${escapeHtml(code)}" />
+        </div>
+      `;
+    })
+    .join("");
+  emojiSettingsListEl.innerHTML = html || `<div class="settingHelp">まだ絵文字が出現していません</div>`;
+}
+
+function applyEmojiReadings(text) {
+  let out = String(text || "");
+  for (const [code, reading] of state.emojiReadings.entries()) {
+    if (!code) continue;
+    if (!reading) continue;
+    out = out.split(code).join(reading);
+  }
+  return out;
 }
 
 function getAuthorAlias(author) {
@@ -222,8 +336,11 @@ function getSelectedChatgptSpeakerStyleId() {
 
 function buildTtsText(comment) {
   const author = getSpeakName(comment?.author);
-  const rawText = String(comment?.text || "").trim();
-  const text = stripEmojis(applyTtsReplacements(rawText)).trim();
+  const rawText = getRawCommentText(comment).trim();
+  // Priority: generic replacements first, then emoji readings (so replacements can override).
+  const replaced = applyEmojiReadings(applyTtsReplacements(rawText));
+  const cleaned = stripEmojis(stripUnreplacedEmojiShortcodes(replaced));
+  const text = cleaned.trim();
   if (!text) return "";
   if (text === "[STICKER]") return "";
   if (author) return `${author}さん、${text}`;
@@ -349,7 +466,7 @@ function shouldSpeakComment(comment, receivedAtMs) {
   const author = normalizeAuthor(comment.author);
   if (author && isAuthorBlocked(author)) return false;
 
-  if (containsNgWord(comment.text)) return false;
+  if (containsNgWord(getRawCommentText(comment))) return false;
 
   const speechText = buildTtsText(comment);
   if (!speechText) return false;
@@ -401,7 +518,7 @@ function enqueueSpeakComment(comment, receivedAtMs) {
           console.error("OpenAI error:", res?.error || res);
           return;
         }
-        const replyText = stripEmojis(String(res.text || "")).trim();
+        const replyText = stripEmojis(applyTtsReplacements(String(res.text || ""))).trim();
         if (!replyText) return;
 
         const replyWav = await voicevoxSynthesizeWav(replyText, chatgptSpeakerStyleId, abortCtrl.signal);
@@ -418,24 +535,30 @@ function enqueueSpeakComment(comment, receivedAtMs) {
 
 function setActiveTab(tabName) {
   const tab =
-    tabName === "voicevox" || tabName === "chatgpt" || tabName === "commentSettings"
+    tabName === "voicevox" ||
+    tabName === "chatgpt" ||
+    tabName === "commentSettings" ||
+    tabName === "emojiSettings"
       ? tabName
       : "comments";
   const isComments = tab === "comments";
   const isVoicevox = tab === "voicevox";
   const isChatgpt = tab === "chatgpt";
   const isCommentSettings = tab === "commentSettings";
+  const isEmojiSettings = tab === "emojiSettings";
 
   tabBtnComments?.classList.toggle("active", isComments);
   tabBtnVoicevoxSettings?.classList.toggle("active", isVoicevox);
   tabBtnChatgptSettings?.classList.toggle("active", isChatgpt);
   tabBtnCommentSettings?.classList.toggle("active", isCommentSettings);
+  tabBtnEmojiSettings?.classList.toggle("active", isEmojiSettings);
 
   tabControls?.classList.toggle("hidden", !isComments);
   tabComments?.classList.toggle("hidden", !isComments);
   tabVoicevoxSettings?.classList.toggle("hidden", !isVoicevox);
   tabChatgptSettings?.classList.toggle("hidden", !isChatgpt);
   tabCommentSettings?.classList.toggle("hidden", !isCommentSettings);
+  tabEmojiSettings?.classList.toggle("hidden", !isEmojiSettings);
 
   localStorage.setItem("activeTab", tab);
 }
@@ -455,12 +578,50 @@ function escapeHtml(s) {
     .replaceAll("'", "&#39;");
 }
 
+function renderMessagePartsHtml(parts) {
+  const out = [];
+  const arr = Array.isArray(parts) ? parts : [];
+  for (const p of arr) {
+    if (!p) continue;
+    if (p.type === "text") {
+      out.push(escapeHtml(p.text || "").replaceAll("\n", "<br />"));
+    } else if (p.type === "emoji") {
+      const url = String(p.url || "").trim();
+      const alt = String(p.alt || "").trim();
+      if (!url) {
+        out.push(escapeHtml(alt));
+      } else {
+        out.push(
+          `<img class="emojiImg" src="${escapeHtml(url)}" alt="${escapeHtml(alt)}" title="${escapeHtml(
+            alt
+          )}" />`
+        );
+      }
+    } else if (p.type === "sticker") {
+      const url = String(p.url || "").trim();
+      const alt = String(p.alt || "").trim();
+      if (url) {
+        out.push(
+          `<img class="stickerImg" src="${escapeHtml(url)}" alt="${escapeHtml(
+            alt
+          )}" title="${escapeHtml(alt)}" />`
+        );
+      } else if (alt) {
+        out.push(escapeHtml(alt));
+      }
+    }
+  }
+  return out.join("");
+}
+
 function formatRow(r) {
   const ts = r.timestamp || "";
   const author = r.author || "???";
   const blocked = isAuthorBlocked(author);
   const alias = getAuthorAlias(author);
+  const parts = Array.isArray(r.parts) ? r.parts : null;
   const text = r.text || "";
+  const msgHtml = parts ? renderMessagePartsHtml(parts) : escapeHtml(text);
   const badge =
     r.kind && r.kind !== "text"
       ? `<span class="badge">${escapeHtml(r.kind)}</span>`
@@ -498,7 +659,7 @@ function formatRow(r) {
           ${blockBtn}
           ${aliasInput}
         </div>
-        <div class="msgText">${escapeHtml(text)}</div>
+        <div class="msgText">${msgHtml}</div>
       </div>
     </div>
   `;
@@ -586,6 +747,30 @@ function stripEmojis(text) {
     .replace(/\p{Extended_Pictographic}/gu, "")
     .replace(/\p{Regional_Indicator}/gu, "") // flags
     .replace(/\s{2,}/g, " ");
+}
+
+function stripUnreplacedEmojiShortcodes(text) {
+  // Custom emoji shortcodes like :komochi: (after replacements).
+  return String(text || "")
+    .replace(/:[^\s:]{1,64}:/g, "")
+    .replace(/\s{2,}/g, " ");
+}
+
+function plainTextFromParts(parts) {
+  const arr = Array.isArray(parts) ? parts : [];
+  let out = "";
+  for (const p of arr) {
+    if (!p) continue;
+    if (p.type === "text") out += String(p.text || "");
+    else if (p.type === "emoji") out += String(p.alt || ""); // e.g. :komochi:
+  }
+  return out;
+}
+
+function getRawCommentText(comment) {
+  if (!comment) return "";
+  if (Array.isArray(comment.parts) && comment.parts.length) return plainTextFromParts(comment.parts);
+  return String(comment.text || "");
 }
 
 function containsNgWord(text) {
@@ -745,6 +930,13 @@ feedEl?.addEventListener("input", (e) => {
   setAuthorAlias(author, el.value);
 });
 
+emojiSettingsListEl?.addEventListener("input", (e) => {
+  const el = e.target;
+  if (!el || !el.classList || !el.classList.contains("emojiReadingInput")) return;
+  const code = String(el.dataset.emoji || "").trim();
+  setEmojiReading(code, el.value);
+});
+
 saveInputBtn?.addEventListener("click", () => {
   const v = inputEl.value.trim();
   if (!v) {
@@ -761,6 +953,23 @@ window.chatApi.onDbPath(({ dbPath }) => {
 
 window.chatApi.onComment((comment) => {
   const receivedAtMs = Date.now();
+
+  // Collect custom emojis that appeared at least once.
+  if (Array.isArray(comment?.parts)) {
+    let changed = false;
+    for (const p of comment.parts) {
+      if (p?.type === "emoji") {
+        const code = String(p.alt || "").trim();
+        const url = String(p.url || "").trim();
+        if (upsertSeenEmoji(code, url)) changed = true;
+      }
+    }
+    if (changed) {
+      saveEmojiCatalog();
+      renderEmojiSettingsList();
+    }
+  }
+
   appendRow(comment);
   enqueueSpeakComment(comment, receivedAtMs);
 });
@@ -786,9 +995,15 @@ window.chatApi.onStopped(() => {
   tabBtnVoicevoxSettings?.addEventListener("click", () => setActiveTab("voicevox"));
   tabBtnChatgptSettings?.addEventListener("click", () => setActiveTab("chatgpt"));
   tabBtnCommentSettings?.addEventListener("click", () => setActiveTab("commentSettings"));
+  tabBtnEmojiSettings?.addEventListener("click", () => setActiveTab("emojiSettings"));
   const saved = localStorage.getItem("activeTab");
   setActiveTab(
-    saved === "voicevox" || saved === "chatgpt" || saved === "commentSettings" ? saved : "comments"
+    saved === "voicevox" ||
+      saved === "chatgpt" ||
+      saved === "commentSettings" ||
+      saved === "emojiSettings"
+      ? saved
+      : "comments"
   );
 })();
 
@@ -925,6 +1140,9 @@ window.chatApi.onStopped(() => {
 (async function init() {
   loadBlockedAuthors();
   loadAuthorAliases();
+  loadEmojiCatalog();
+  loadEmojiReadings();
+  renderEmojiSettingsList();
   ensureVoicevoxAvailabilityLoop().catch((e) => console.error("voicevox availability loop:", e));
   await refreshDbPath();
   const savedInputStr = localStorage.getItem("savedInputStr") || "";
