@@ -1,0 +1,313 @@
+:root {
+  --bg: #0b1020;
+  --panel: rgba(255, 255, 255, 0.06);
+  --panel2: rgba(255, 255, 255, 0.09);
+  --text: rgba(255, 255, 255, 0.92);
+  --muted: rgba(255, 255, 255, 0.62);
+  --border: rgba(255, 255, 255, 0.10);
+  --accent: #6ea8ff;
+  --danger: #ff5c7a;
+  --ok: #56d364;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue",
+    Arial, "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+  color: var(--text);
+  background: radial-gradient(1200px 600px at 20% 10%, rgba(110, 168, 255, 0.18), transparent),
+    radial-gradient(900px 500px at 90% 30%, rgba(255, 92, 122, 0.10), transparent),
+    var(--bg);
+}
+
+.app {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 18px;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 14px;
+  height: 100%;
+}
+
+.controls {
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.tabs {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.tab {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  cursor: pointer;
+}
+.tab:hover {
+  background: rgba(255, 255, 255, 0.10);
+}
+.tab.active {
+  border-color: rgba(110, 168, 255, 0.45);
+  background: rgba(110, 168, 255, 0.18);
+}
+
+.hidden {
+  display: none !important;
+}
+
+.label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.row + .row {
+  margin-top: 10px;
+}
+
+.input {
+  flex: 1;
+  height: 40px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  outline: none;
+}
+.input:focus {
+  border-color: rgba(110, 168, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(110, 168, 255, 0.15);
+}
+
+.btn {
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  cursor: pointer;
+}
+.btn:hover {
+  background: rgba(255, 255, 255, 0.10);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  border-color: rgba(110, 168, 255, 0.45);
+  background: rgba(110, 168, 255, 0.18);
+}
+
+.meta {
+  justify-content: space-between;
+}
+
+.dbpath {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 70%;
+}
+
+.toggle {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 12px;
+  user-select: none;
+}
+
+.feed {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+  min-height: 300px;
+}
+
+.feedHeader {
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.feedMeta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--muted);
+}
+
+.labelSmall {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.select {
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  padding: 0 10px;
+}
+
+/* Make dropdown options readable on dark UI (Chromium/Electron). */
+.select option {
+  background: #0f1630;
+  color: rgba(255, 255, 255, 0.92);
+}
+.select option:disabled {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.feedBody {
+  padding: 10px;
+  overflow: auto;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.panelHeader {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.panelBody {
+  padding: 12px;
+}
+
+.settingRow + .settingRow {
+  margin-top: 14px;
+}
+
+.settingLabel {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.settingValue {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.settingHelp {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.msg {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.16);
+}
+.msg + .msg {
+  margin-top: 10px;
+}
+
+.icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+}
+.icon.placeholder {
+  display: block;
+}
+
+.msgTop {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+}
+.ts {
+  font-size: 11px;
+  color: var(--muted);
+}
+.author {
+  font-weight: 650;
+}
+.badge {
+  font-size: 11px;
+  color: rgba(110, 168, 255, 0.95);
+  border: 1px solid rgba(110, 168, 255, 0.35);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+.amount {
+  font-size: 11px;
+  color: rgba(255, 217, 102, 0.95);
+  border: 1px solid rgba(255, 217, 102, 0.35);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.msgText {
+  margin-top: 6px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

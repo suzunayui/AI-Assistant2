@@ -1,0 +1,18 @@
+{
+  "name": "youtube-chat-to-sqlite",
+  "private": true,
+  "type": "commonjs",
+  "main": "main.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "ingest": "node ingest.js",
+    "start": "electron .",
+    "rebuild:sqlite": "npm rebuild better-sqlite3"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "electron": "^37.0.0"
+  }
+}
