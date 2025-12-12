@@ -95,6 +95,45 @@ async function getWatchHtml(videoId) {
 }
 
 /**
+ * live_chat (popout) HTML を取得
+ * watchページより continuation が取りやすいことがある
+ */
+async function getLiveChatHtml(videoId) {
+  const url = `https://www.youtube.com/live_chat?v=${videoId}&is_popout=1`;
+  const resp = await fetch(url, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120 Safari/537.36",
+    },
+  });
+
+  if (!resp.ok) {
+    throw new Error(`failed to fetch live_chat page: ${resp.status}`);
+  }
+
+  return await resp.text();
+}
+
+function firstMatch(html, patterns) {
+  for (const re of patterns) {
+    const m = html.match(re);
+    if (m && m[1]) return m[1];
+  }
+  return null;
+}
+
+function extractLiveChatContinuation(html) {
+  const anchorKeys = ['"liveChatRenderer"', '"LiveChatRenderer"', '"liveChatContinuation"'];
+  let idx = -1;
+  for (const k of anchorKeys) {
+    idx = html.indexOf(k);
+    if (idx !== -1) break;
+  }
+  const slice = idx !== -1 ? html.slice(idx, idx + 250000) : html;
+  return firstMatch(slice, [/"continuation"\s*:\s*"([^"]+)"/]);
+}
+
+/**
  * watch ページ HTML から:
  *  - INNERTUBE_API_KEY
  *  - clientVersion
@@ -102,25 +141,20 @@ async function getWatchHtml(videoId) {
  * を抜き出す
  */
 function extractOptionsFromHtml(html) {
-  const mKey = html.match(/"INNERTUBE_API_KEY"\s*:\s*"([^"]+)"/);
-  const mVer = html.match(/"clientVersion"\s*:\s*"([\d\.]+)"/);
-  const mCont = html.match(/"continuation"\s*:\s*"([^"]+)"/);
+  const apiKey = firstMatch(html, [/"INNERTUBE_API_KEY"\s*:\s*"([^"]+)"/]);
+  const clientVersion = firstMatch(html, [
+    /"clientVersion"\s*:\s*"([^"]+)"/,
+    /"INNERTUBE_CONTEXT_CLIENT_VERSION"\s*:\s*"([^"]+)"/,
+    /"INNERTUBE_CLIENT_VERSION"\s*:\s*"([^"]+)"/,
+  ]);
+  const continuation =
+    extractLiveChatContinuation(html) || firstMatch(html, [/"continuation"\s*:\s*"([^"]+)"/]);
 
-  if (!mKey) {
-    throw new Error("INNERTUBE_API_KEY が見つかりません");
-  }
-  if (!mVer) {
-    throw new Error("clientVersion が見つかりません");
-  }
-  if (!mCont) {
-    throw new Error("continuation が見つかりません");
-  }
+  if (!apiKey) throw new Error("INNERTUBE_API_KEY が見つかりません");
+  if (!clientVersion) throw new Error("clientVersion が見つかりません");
+  if (!continuation) throw new Error("continuation が見つかりません");
 
-  return {
-    apiKey: mKey[1],
-    clientVersion: mVer[1],
-    continuation: mCont[1],
-  };
+  return { apiKey, clientVersion, continuation };
 }
 
 /**
@@ -579,11 +613,19 @@ async function startLiveChat(inputStr) {
       clientVersion = opts.clientVersion;
       cont0 = opts.continuation;
     } catch (e) {
-      console.log(
-        "❌ ライブチャット初期化に失敗しました（配信中でない可能性）:",
-        e?.message || e
-      );
-      return;
+      try {
+        const liveHtml = await getLiveChatHtml(videoId);
+        const opts2 = extractOptionsFromHtml(liveHtml);
+        apiKey = opts2.apiKey;
+        clientVersion = opts2.clientVersion;
+        cont0 = opts2.continuation;
+      } catch (e2) {
+        console.log(
+          "❌ ライブチャット初期化に失敗しました（配信中でない可能性）:",
+          (e2 && e2.message) || (e && e.message) || e2 || e
+        );
+        return;
+      }
     }
 
     let continuation = cont0;

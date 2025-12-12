@@ -30,6 +30,31 @@ async function fetchJsonWithTimeout(url, timeoutMs) {
   }
 }
 
+async function fetchWithTimeout(url, init, timeoutMs) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs).unref();
+  try {
+    return await fetch(url, { ...(init || {}), signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+function extractOpenAiOutputText(json) {
+  if (!json) return "";
+  if (typeof json.output_text === "string") return json.output_text.trim();
+  const output = Array.isArray(json.output) ? json.output : [];
+  const parts = [];
+  for (const item of output) {
+    const content = Array.isArray(item?.content) ? item.content : [];
+    for (const c of content) {
+      if (c?.type === "output_text" && typeof c?.text === "string") parts.push(c.text);
+      if (c?.type === "text" && typeof c?.text === "string") parts.push(c.text);
+    }
+  }
+  return parts.join("\n").trim();
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 980,
@@ -107,6 +132,66 @@ ipcMain.handle("voicevox:getSpeakers", async () => {
   }
 });
 
+ipcMain.handle("openai:respond", async (_evt, payload) => {
+  try {
+    const apiKey = payload && typeof payload.apiKey === "string" ? payload.apiKey.trim() : "";
+    const prompt = payload && typeof payload.prompt === "string" ? payload.prompt.trim() : "";
+    const persona =
+      payload && typeof payload.persona === "string" ? payload.persona.trim().slice(0, 2000) : "";
+    if (!apiKey) return { ok: false, error: "OpenAI API Key is required" };
+    if (!prompt) return { ok: false, error: "prompt is required" };
+
+    const systemText =
+      "あなたは配信コメントに返答するアシスタントです。日本語で、短く自然に返答してください。危険な依頼や個人情報には答えず、必要ならやんわり断ってください。" +
+      (persona ? `\n\n【性格/口調】\n${persona}` : "");
+
+    const body = {
+      model: "gpt-4.1-nano",
+      input: [
+        {
+          role: "system",
+          content: [
+            {
+              type: "input_text",
+              text: systemText,
+            },
+          ],
+        },
+        { role: "user", content: [{ type: "input_text", text: prompt }] },
+      ],
+    };
+
+    const resp = await fetchWithTimeout(
+      "https://api.openai.com/v1/responses",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      },
+      20000
+    );
+
+    const raw = await resp.text().catch(() => "");
+    if (!resp.ok) return { ok: false, error: `OpenAI HTTP ${resp.status} ${raw}`.trim() };
+
+    let json;
+    try {
+      json = JSON.parse(raw);
+    } catch (e) {
+      return { ok: false, error: `OpenAI invalid JSON: ${String(e)}` };
+    }
+
+    const text = extractOpenAiOutputText(json);
+    if (!text) return { ok: false, error: "OpenAI returned empty response" };
+    return { ok: true, text };
+  } catch (e) {
+    return { ok: false, error: e && e.message ? e.message : String(e) };
+  }
+});
+
 ipcMain.handle("chat:start", async (_evt, inputStr, options) => {
   if (!inputStr || typeof inputStr !== "string") {
     throw new Error("inputStr is required");
@@ -115,10 +200,12 @@ ipcMain.handle("chat:start", async (_evt, inputStr, options) => {
 
   const userDataDbDir = path.join(app.getPath("userData"), "db");
   const workerPath = path.join(__dirname, "worker.js");
-  const nodeBin =
-    (options && typeof options.nodeBin === "string" && options.nodeBin.trim()) ||
-    process.env.NODE_BINARY ||
-    "node";
+  const nodeBinOpt =
+    (options && typeof options.nodeBin === "string" && options.nodeBin.trim()) || "";
+  const envNodeBin = (process.env.NODE_BINARY || "").trim();
+  const useExternalNode = Boolean(nodeBinOpt || envNodeBin);
+  const useElectronAsNode = !useExternalNode;
+  const nodeBin = useElectronAsNode ? process.execPath : nodeBinOpt || envNodeBin || "node";
 
   recent.length = 0;
   dbPath = null;
@@ -126,6 +213,12 @@ ipcMain.handle("chat:start", async (_evt, inputStr, options) => {
   worker = spawn(nodeBin, [workerPath, inputStr.trim(), "--dbDir", userDataDbDir], {
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
+    env: useElectronAsNode
+      ? {
+          ...process.env,
+          ELECTRON_RUN_AS_NODE: "1",
+        }
+      : process.env,
   });
 
   running = true;

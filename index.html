@@ -3,6 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https: http://127.0.0.1:50021; media-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none';"
+    />
     <title>AIアシスタント</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
@@ -12,8 +16,14 @@
         <button id="tabBtnComments" class="tab active" type="button" data-tab="comments">
           コメント
         </button>
-        <button id="tabBtnSettings" class="tab" type="button" data-tab="settings">
-          設定
+        <button id="tabBtnVoicevoxSettings" class="tab" type="button" data-tab="voicevox">
+          VOICEVOX設定
+        </button>
+        <button id="tabBtnChatgptSettings" class="tab" type="button" data-tab="chatgpt">
+          ChatGPT設定
+        </button>
+        <button id="tabBtnCommentSettings" class="tab" type="button" data-tab="commentSettings">
+          コメント設定
         </button>
       </nav>
 
@@ -57,8 +67,8 @@
         <div id="feed" class="feedBody"></div>
       </section>
 
-      <section id="tab-settings" class="panel hidden">
-        <div class="panelHeader">設定</div>
+      <section id="tab-voicevox-settings" class="panel hidden">
+        <div class="panelHeader">VOICEVOX設定</div>
         <div class="panelBody">
           <div class="settingRow">
             <div class="settingLabel">VOICEVOX 話者</div>
@@ -76,13 +86,90 @@
               </select>
             </div>
           </div>
+        </div>
+      </section>
 
+      <section id="tab-chatgpt-settings" class="panel hidden">
+        <div class="panelHeader">ChatGPT設定</div>
+        <div class="panelBody">
           <div class="settingRow">
-            <div class="settingLabel">ChatGPT用</div>
+            <div class="settingLabel">ChatGPT用（VOICEVOX話者）</div>
             <div class="settingValue">
               <select id="voicevoxSpeakerChatgpt" class="select" style="flex: 1">
                 <option value="">取得中…</option>
               </select>
+            </div>
+          </div>
+
+          <div class="settingRow">
+            <div class="settingLabel">OpenAI API Key</div>
+            <div class="settingValue" style="align-items: stretch; flex-direction: column">
+              <input
+                id="openaiApiKey"
+                class="input"
+                type="password"
+                placeholder="sk-..."
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <div id="openaiApiKeyHelp" class="settingHelp" style="margin-top: 0"></div>
+            </div>
+          </div>
+
+          <div class="settingRow">
+            <div class="settingLabel">ChatGPTの性格</div>
+            <div class="settingValue" style="align-items: stretch; flex-direction: column">
+              <textarea
+                id="chatgptPersona"
+                class="textarea"
+                placeholder="例: 関西弁でフレンドリーに、短めに返答する"
+                spellcheck="false"
+              ></textarea>
+              <div id="chatgptPersonaHelp" class="settingHelp" style="margin-top: 0"></div>
+            </div>
+          </div>
+
+          <div class="settingRow">
+            <div class="settingLabel">ChatGPT起動トリガーキーワード</div>
+            <div class="settingValue" style="align-items: stretch; flex-direction: column">
+              <textarea
+                id="chatgptTriggerKeywords"
+                class="textarea"
+                placeholder="例: GPT&#10;質問&#10;教えて&#10;（1行=1キーワード / カンマ区切りも可）"
+                spellcheck="false"
+              ></textarea>
+              <div id="chatgptTriggerKeywordsHelp" class="settingHelp" style="margin-top: 0"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-comment-settings" class="panel hidden">
+        <div class="panelHeader">コメント設定</div>
+        <div class="panelBody">
+          <div class="settingRow">
+            <div class="settingLabel">ワード置き換え（読み上げ時）</div>
+            <div class="settingValue" style="align-items: stretch; flex-direction: column">
+              <textarea
+                id="ttsWordReplacements"
+                class="textarea"
+                placeholder="例: www => わらわら&#10;草=>くさ&#10;（1行=1ルール、区切りは「=>」または「,」）"
+                spellcheck="false"
+              ></textarea>
+              <div id="ttsWordReplacementsHelp" class="settingHelp" style="margin-top: 0"></div>
+            </div>
+          </div>
+
+          <div class="settingRow">
+            <div class="settingLabel">NGワード（含まれていたら読まない）</div>
+            <div class="settingValue" style="align-items: stretch; flex-direction: column">
+              <textarea
+                id="ttsNgWords"
+                class="textarea"
+                placeholder="例: ネタバレ&#10;暴言&#10;（1行=1ワード / カンマ区切りも可）"
+                spellcheck="false"
+              ></textarea>
+              <div id="ttsNgWordsHelp" class="settingHelp" style="margin-top: 0"></div>
             </div>
           </div>
         </div>

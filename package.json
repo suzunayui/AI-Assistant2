@@ -1,18 +1,49 @@
 {
-  "name": "youtube-chat-to-sqlite",
+  "name": "ai-assistant",
   "private": true,
   "type": "commonjs",
   "main": "main.js",
+  "version": "2025.12.13",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
     "ingest": "node ingest.js",
     "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win --x64",
     "rebuild:sqlite": "npm rebuild better-sqlite3"
   },
+  "build": {
+    "appId": "com.suzunayui.ai-assistant",
+    "productName": "AI-Assistant",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*"
+    ],
+    "npmRebuild": false,
+    "beforePack": "scripts/electron-builder-beforePack.js",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    }
+  },
   "dependencies": {
-    "better-sqlite3": "^11.10.0",
-    "electron": "^37.0.0"
+    "better-sqlite3": "^12.5.0"
+  },
+  "devDependencies": {
+    "electron": "^37.0.0",
+    "electron-builder": "^26.0.12",
+    "prebuild-install": "^7.1.3"
   }
 }

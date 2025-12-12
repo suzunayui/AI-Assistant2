@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld("chatApi", {
   isRunning: () => ipcRenderer.invoke("chat:isRunning"),
   getRecent: (limit) => ipcRenderer.invoke("chat:getRecent", limit),
   getVoicevoxSpeakers: () => ipcRenderer.invoke("voicevox:getSpeakers"),
+  openaiRespond: (apiKey, prompt, persona) =>
+    ipcRenderer.invoke("openai:respond", { apiKey, prompt, persona }),
   onDbPath: (cb) => {
     const handler = (_evt, payload) => cb(payload);
     ipcRenderer.on("chat:dbPath", handler);
