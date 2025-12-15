@@ -6,6 +6,14 @@ const voicevoxSpeakerTtsEl = document.getElementById("voicevoxSpeakerTts");
 const voicevoxSpeakerChatgptEl = document.getElementById("voicevoxSpeakerChatgpt");
 const voicevoxStatusEl = document.getElementById("voicevoxStatus");
 const refreshVoicevoxBtn = document.getElementById("refreshVoicevox");
+const voicevoxSpeedTtsEl = document.getElementById("voicevoxSpeedTts");
+const voicevoxSpeedTtsValueEl = document.getElementById("voicevoxSpeedTtsValue");
+const voicevoxVolumeTtsEl = document.getElementById("voicevoxVolumeTts");
+const voicevoxVolumeTtsValueEl = document.getElementById("voicevoxVolumeTtsValue");
+const voicevoxSpeedChatgptEl = document.getElementById("voicevoxSpeedChatgpt");
+const voicevoxSpeedChatgptValueEl = document.getElementById("voicevoxSpeedChatgptValue");
+const voicevoxVolumeChatgptEl = document.getElementById("voicevoxVolumeChatgpt");
+const voicevoxVolumeChatgptValueEl = document.getElementById("voicevoxVolumeChatgptValue");
 const openaiApiKeyEl = document.getElementById("openaiApiKey");
 const openaiApiKeyHelpEl = document.getElementById("openaiApiKeyHelp");
 const chatgptPersonaEl = document.getElementById("chatgptPersona");
@@ -70,6 +78,10 @@ const state = {
 const SETTINGS_KEYS = [
   "voicevoxSpeakerTts",
   "voicevoxSpeakerChatgpt",
+  "voicevoxSpeedTts",
+  "voicevoxVolumeTts",
+  "voicevoxSpeedChatgpt",
+  "voicevoxVolumeChatgpt",
   "openaiApiKey",
   "chatgptPersona",
   "chatgptTriggerKeywords",
@@ -137,6 +149,7 @@ function applySettingsSnapshot(data) {
   loadChatgptTriggerKeywords();
   loadOpenAiApiKey();
   loadChatgptPersona();
+  loadVoicevoxVoiceSettings();
   renderEmojiSettingsList();
 
   if (voicevoxSpeakerTtsEl) voicevoxSpeakerTtsEl.value = (localStorage.getItem("voicevoxSpeakerTts") || "").trim();
@@ -422,6 +435,67 @@ function getSelectedChatgptSpeakerStyleId() {
   return Number.isFinite(n) ? n : null;
 }
 
+function clampNumber(v, min, max, fallback) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  if (n < min) return min;
+  if (n > max) return max;
+  return n;
+}
+
+function getStoredNumber(key, fallback) {
+  const raw = localStorage.getItem(key);
+  if (raw === null) return fallback;
+  const n = Number.parseFloat(String(raw));
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function formatScale2(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? `${n.toFixed(2)}x` : "";
+}
+
+function loadVoicevoxVoiceSettings() {
+  const ttsSpeed = clampNumber(getStoredNumber("voicevoxSpeedTts", 1.0), 0.5, 2.0, 1.0);
+  const ttsVol = clampNumber(getStoredNumber("voicevoxVolumeTts", 1.0), 0.0, 2.0, 1.0);
+  const gptSpeed = clampNumber(getStoredNumber("voicevoxSpeedChatgpt", 1.0), 0.5, 2.0, 1.0);
+  const gptVol = clampNumber(getStoredNumber("voicevoxVolumeChatgpt", 1.0), 0.0, 2.0, 1.0);
+
+  if (voicevoxSpeedTtsEl && String(voicevoxSpeedTtsEl.value) !== String(ttsSpeed)) {
+    voicevoxSpeedTtsEl.value = String(ttsSpeed);
+  }
+  if (voicevoxSpeedTtsValueEl) voicevoxSpeedTtsValueEl.textContent = formatScale2(ttsSpeed);
+
+  if (voicevoxVolumeTtsEl && String(voicevoxVolumeTtsEl.value) !== String(ttsVol)) {
+    voicevoxVolumeTtsEl.value = String(ttsVol);
+  }
+  if (voicevoxVolumeTtsValueEl) voicevoxVolumeTtsValueEl.textContent = formatScale2(ttsVol);
+
+  if (voicevoxSpeedChatgptEl && String(voicevoxSpeedChatgptEl.value) !== String(gptSpeed)) {
+    voicevoxSpeedChatgptEl.value = String(gptSpeed);
+  }
+  if (voicevoxSpeedChatgptValueEl) voicevoxSpeedChatgptValueEl.textContent = formatScale2(gptSpeed);
+
+  if (voicevoxVolumeChatgptEl && String(voicevoxVolumeChatgptEl.value) !== String(gptVol)) {
+    voicevoxVolumeChatgptEl.value = String(gptVol);
+  }
+  if (voicevoxVolumeChatgptValueEl) voicevoxVolumeChatgptValueEl.textContent = formatScale2(gptVol);
+}
+
+function getVoicevoxTtsVoiceParams() {
+  return {
+    speedScale: clampNumber(getStoredNumber("voicevoxSpeedTts", 1.0), 0.5, 2.0, 1.0),
+    volumeScale: clampNumber(getStoredNumber("voicevoxVolumeTts", 1.0), 0.0, 2.0, 1.0),
+  };
+}
+
+function getVoicevoxChatgptVoiceParams() {
+  return {
+    speedScale: clampNumber(getStoredNumber("voicevoxSpeedChatgpt", 1.0), 0.5, 2.0, 1.0),
+    volumeScale: clampNumber(getStoredNumber("voicevoxVolumeChatgpt", 1.0), 0.0, 2.0, 1.0),
+  };
+}
+
 function buildTtsText(comment) {
   const author = getSpeakName(comment?.author);
   const rawText = getRawCommentText(comment).trim();
@@ -437,13 +511,13 @@ function buildTtsText(comment) {
 
 function buildChatgptPrompt(comment) {
   const author = getSpeakName(comment?.author);
-  const text = String(comment?.text || "").trim();
+  const text = getRawCommentText(comment).trim();
   if (!text) return "";
   const said = author ? `${author}さんが「${text}」と言いました。` : `「${text}」と言いました。`;
   return `配信コメント: ${said}これに対して配信向けに自然に返答してください。`;
 }
 
-async function voicevoxSynthesizeWav(text, speakerStyleId, signal) {
+async function voicevoxSynthesizeWav(text, speakerStyleId, voiceParams, signal) {
   const qUrl = `http://127.0.0.1:50021/audio_query?text=${encodeURIComponent(
     text
   )}&speaker=${encodeURIComponent(String(speakerStyleId))}`;
@@ -455,6 +529,8 @@ async function voicevoxSynthesizeWav(text, speakerStyleId, signal) {
   );
   if (!qResp.ok) throw new Error(`audio_query failed: ${qResp.status}`);
   const query = await qResp.json();
+  query.speedScale = clampNumber(voiceParams?.speedScale, 0.5, 2.0, 1.0);
+  query.volumeScale = clampNumber(voiceParams?.volumeScale, 0.0, 2.0, 1.0);
 
   const sUrl = `http://127.0.0.1:50021/synthesis?speaker=${encodeURIComponent(
     String(speakerStyleId)
@@ -538,7 +614,7 @@ function clearTtsQueue() {
   state.currentAudio = null;
 }
 
-function shouldSpeakComment(comment, receivedAtMs) {
+function shouldProcessComment(comment, receivedAtMs) {
   if (!comment) return false;
   if (!state.voicevoxAvailable) return false;
 
@@ -548,21 +624,16 @@ function shouldSpeakComment(comment, receivedAtMs) {
       : receivedAtMs;
   if (commentTs < state.appStartedAt) return false;
 
-  const speakerStyleId = getSelectedTtsSpeakerStyleId();
-  if (!speakerStyleId) return false;
-
   const author = normalizeAuthor(comment.author);
   if (author && isAuthorBlocked(author)) return false;
 
   if (containsNgWord(getRawCommentText(comment))) return false;
 
-  const speechText = buildTtsText(comment);
-  if (!speechText) return false;
   return true;
 }
 
 function enqueueSpeakComment(comment, receivedAtMs) {
-  if (!shouldSpeakComment(comment, receivedAtMs)) return;
+  if (!shouldProcessComment(comment, receivedAtMs)) return;
 
   const myGen = state.ttsGeneration;
   state.ttsChain = state.ttsChain
@@ -570,24 +641,38 @@ function enqueueSpeakComment(comment, receivedAtMs) {
     .then(async () => {
       // Re-check right before speaking (settings might have changed while queued).
       if (myGen !== state.ttsGeneration) return;
-      if (!shouldSpeakComment(comment, receivedAtMs)) return;
-      const speakerStyleId = getSelectedTtsSpeakerStyleId();
-      const text = buildTtsText(comment);
-      if (!speakerStyleId || !text) return;
+      if (!shouldProcessComment(comment, receivedAtMs)) return;
+
+      const ttsSpeakerStyleId = getSelectedTtsSpeakerStyleId();
+      const speechText = buildTtsText(comment);
+
+      const triggerKw = findChatgptTriggerKeyword(getTriggerCommentText(comment));
+      const canChatgpt =
+        Boolean(triggerKw) &&
+        Boolean(comment?.id) &&
+        !state.respondedIds.has(comment.id) &&
+        Boolean(state.openaiApiKey) &&
+        Boolean(getSelectedChatgptSpeakerStyleId());
+
+      const canSpeak = Boolean(ttsSpeakerStyleId && speechText);
+      if (!canSpeak && !canChatgpt) return;
 
       const abortCtrl = new AbortController();
       state.ttsAbortControllers.add(abortCtrl);
       try {
-        const wav = await voicevoxSynthesizeWav(text, speakerStyleId, abortCtrl.signal);
-        if (myGen !== state.ttsGeneration || abortCtrl.signal.aborted) return;
-        await playWavArrayBuffer(wav, abortCtrl.signal);
-        if (myGen !== state.ttsGeneration || abortCtrl.signal.aborted) return;
+        if (canSpeak) {
+          const wav = await voicevoxSynthesizeWav(
+            speechText,
+            ttsSpeakerStyleId,
+            getVoicevoxTtsVoiceParams(),
+            abortCtrl.signal
+          );
+          if (myGen !== state.ttsGeneration || abortCtrl.signal.aborted) return;
+          await playWavArrayBuffer(wav, abortCtrl.signal);
+          if (myGen !== state.ttsGeneration || abortCtrl.signal.aborted) return;
+        }
 
-        const triggerKw = findChatgptTriggerKeyword(getRawCommentText(comment));
-        if (!triggerKw) return;
-        if (!comment?.id) return;
-        if (state.respondedIds.has(comment.id)) return;
-        if (!state.openaiApiKey) return;
+        if (!canChatgpt) return;
 
         const chatgptSpeakerStyleId = getSelectedChatgptSpeakerStyleId();
         if (!chatgptSpeakerStyleId) return;
@@ -596,11 +681,7 @@ function enqueueSpeakComment(comment, receivedAtMs) {
         const prompt = buildChatgptPrompt(comment);
         if (!prompt) return;
 
-        const res = await window.chatApi.openaiRespond(
-          state.openaiApiKey,
-          prompt,
-          state.chatgptPersona
-        );
+        const res = await window.chatApi.openaiRespond(state.openaiApiKey, prompt, state.chatgptPersona);
         if (myGen !== state.ttsGeneration || abortCtrl.signal.aborted) return;
         if (!res || !res.ok) {
           console.error("OpenAI error:", res?.error || res);
@@ -609,7 +690,12 @@ function enqueueSpeakComment(comment, receivedAtMs) {
         const replyText = stripEmojis(applyTtsReplacements(String(res.text || ""))).trim();
         if (!replyText) return;
 
-        const replyWav = await voicevoxSynthesizeWav(replyText, chatgptSpeakerStyleId, abortCtrl.signal);
+        const replyWav = await voicevoxSynthesizeWav(
+          replyText,
+          chatgptSpeakerStyleId,
+          getVoicevoxChatgptVoiceParams(),
+          abortCtrl.signal
+        );
         if (myGen !== state.ttsGeneration || abortCtrl.signal.aborted) return;
         await playWavArrayBuffer(replyWav, abortCtrl.signal);
       } finally {
@@ -848,13 +934,37 @@ function stripUnreplacedEmojiShortcodes(text) {
     .replace(/\s{2,}/g, " ");
 }
 
+function normalizeForEmojiMatch(text) {
+  // Make emoji comparisons more tolerant (variation selectors/ZWJ/skin tones etc.).
+  return String(text || "")
+    .normalize("NFC")
+    .replace(/[\u200D\uFE0E\uFE0F]/g, "") // ZWJ + variation selectors
+    .replace(/\p{Emoji_Modifier}/gu, ""); // skin tone modifiers etc.
+}
+
 function plainTextFromParts(parts) {
   const arr = Array.isArray(parts) ? parts : [];
   let out = "";
   for (const p of arr) {
     if (!p) continue;
     if (p.type === "text") out += String(p.text || "");
-    else if (p.type === "emoji") out += String(p.alt || ""); // e.g. :komochi:
+    else if (p.type === "emoji") out += String(p.alt || ""); // e.g. :komochi: or 😀
+  }
+  return out;
+}
+
+function triggerTextFromParts(parts) {
+  const arr = Array.isArray(parts) ? parts : [];
+  let out = "";
+  for (const p of arr) {
+    if (!p) continue;
+    if (p.type === "text") out += String(p.text || "");
+    else if (p.type === "emoji") {
+      const alt = String(p.alt || "");
+      const emojiId = String(p.emojiId || "");
+      const shortcuts = Array.isArray(p.shortcuts) ? p.shortcuts.map((s) => String(s || "")) : [];
+      out += [alt, emojiId, ...shortcuts].filter(Boolean).join("");
+    }
   }
   return out;
 }
@@ -862,6 +972,12 @@ function plainTextFromParts(parts) {
 function getRawCommentText(comment) {
   if (!comment) return "";
   if (Array.isArray(comment.parts) && comment.parts.length) return plainTextFromParts(comment.parts);
+  return String(comment.text || "");
+}
+
+function getTriggerCommentText(comment) {
+  if (!comment) return "";
+  if (Array.isArray(comment.parts) && comment.parts.length) return triggerTextFromParts(comment.parts);
   return String(comment.text || "");
 }
 
@@ -912,9 +1028,12 @@ function loadChatgptTriggerKeywords() {
 function findChatgptTriggerKeyword(text) {
   const t = String(text || "");
   if (!t) return null;
+  const tNorm = normalizeForEmojiMatch(t);
   for (const kw of state.chatgptTriggerKeywords) {
     if (!kw) continue;
     if (t.includes(kw)) return kw;
+    const kwNorm = normalizeForEmojiMatch(kw);
+    if (kwNorm && tNorm.includes(kwNorm)) return kw;
   }
   return null;
 }
@@ -948,7 +1067,7 @@ function appendRow(row) {
   if (!row || !row.id) return;
   if (state.seenIds.has(row.id)) return;
   state.seenIds.add(row.id);
-  const triggerKw = findChatgptTriggerKeyword(getRawCommentText(row));
+  const triggerKw = findChatgptTriggerKeyword(getTriggerCommentText(row));
   const decorated = triggerKw ? { ...row, chatgpt_trigger: true } : row;
   feedEl.insertAdjacentHTML("beforeend", formatRow(decorated));
   const active = document.activeElement;
@@ -1115,6 +1234,18 @@ window.chatApi.onStopped(() => {
   }
 
   // Note: values may change via import; read localStorage when applying.
+
+  loadVoicevoxVoiceSettings();
+  function bindRangeSetting(el, key) {
+    el?.addEventListener("input", () => {
+      setSetting(key, String(el?.value || ""));
+      loadVoicevoxVoiceSettings();
+    });
+  }
+  bindRangeSetting(voicevoxSpeedTtsEl, "voicevoxSpeedTts");
+  bindRangeSetting(voicevoxVolumeTtsEl, "voicevoxVolumeTts");
+  bindRangeSetting(voicevoxSpeedChatgptEl, "voicevoxSpeedChatgpt");
+  bindRangeSetting(voicevoxVolumeChatgptEl, "voicevoxVolumeChatgpt");
 
   loadOpenAiApiKey();
   openaiApiKeyEl?.addEventListener("input", () => {

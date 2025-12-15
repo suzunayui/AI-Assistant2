@@ -285,6 +285,8 @@ function parseMessageParts(renderer) {
         type: "emoji",
         url,
         alt,
+        emojiId: emoji.emojiId || "",
+        shortcuts: Array.isArray(shortcuts) ? shortcuts : [],
       });
     }
   }

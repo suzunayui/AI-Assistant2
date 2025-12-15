@@ -240,6 +240,19 @@ body {
   padding: 0 10px;
 }
 
+.range {
+  flex: 1;
+  accent-color: rgba(110, 168, 255, 0.9);
+}
+
+.rangeValue {
+  min-width: 56px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Make dropdown options readable on dark UI (Chromium/Electron). */
 .select option {
   background: #0f1630;
