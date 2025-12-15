@@ -152,6 +152,52 @@ ipcMain.handle("voicevox:getSpeakers", async () => {
   }
 });
 
+ipcMain.handle("media:pickSound", async () => {
+  try {
+    if (!mainWindow) return { ok: false, error: "window not ready" };
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+      title: "効果音ファイルを選択",
+      properties: ["openFile"],
+      filters: [{ name: "Audio", extensions: ["wav", "mp3", "ogg", "m4a"] }],
+    });
+    if (canceled || !filePaths || filePaths.length === 0) return { ok: false, canceled: true };
+    return { ok: true, path: filePaths[0] };
+  } catch (e) {
+    return { ok: false, error: e && e.message ? e.message : String(e) };
+  }
+});
+
+ipcMain.handle("media:readFileBase64", async (_evt, filePath) => {
+  try {
+    const p = typeof filePath === "string" ? filePath : "";
+    if (!p) return { ok: false, error: "path is required" };
+    if (!fs.existsSync(p)) return { ok: false, error: "file not found" };
+
+    const ext = path.extname(p).toLowerCase();
+    const allowed = new Set([".wav", ".mp3", ".ogg", ".m4a"]);
+    if (!allowed.has(ext)) return { ok: false, error: "unsupported file type" };
+
+    const stat = fs.statSync(p);
+    const maxBytes = 10 * 1024 * 1024;
+    if (!stat.isFile()) return { ok: false, error: "not a file" };
+    if (stat.size > maxBytes) return { ok: false, error: "file too large" };
+
+    const buf = fs.readFileSync(p);
+    const base64 = buf.toString("base64");
+    const mime =
+      ext === ".wav"
+        ? "audio/wav"
+        : ext === ".mp3"
+          ? "audio/mpeg"
+          : ext === ".ogg"
+            ? "audio/ogg"
+            : "audio/mp4";
+    return { ok: true, base64, mime };
+  } catch (e) {
+    return { ok: false, error: e && e.message ? e.message : String(e) };
+  }
+});
+
 ipcMain.handle("settings:getPath", () => ({ ok: true, path: getSettingsFilePath() }));
 
 ipcMain.handle("settings:ensureFile", () => {

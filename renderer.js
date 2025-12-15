@@ -62,6 +62,8 @@ const state = {
   ttsNgWords: [],
   emojiCatalog: new Map(), // shortcode => { url, lastSeenMs }
   emojiReadings: new Map(), // shortcode => reading
+  emojiSounds: new Map(), // shortcode => file path
+  emojiSoundVolumes: new Map(), // shortcode => 0..1
   appStartedAt: Date.now(),
   voicevoxAvailable: false,
   ttsChain: Promise.resolve(),
@@ -92,6 +94,8 @@ const SETTINGS_KEYS = [
   "ttsNgWords",
   "emojiCatalog",
   "emojiReadings",
+  "emojiSounds",
+  "emojiSoundVolumes",
   "activeTab",
 ];
 
@@ -144,6 +148,8 @@ function applySettingsSnapshot(data) {
   loadAuthorAliases();
   loadEmojiCatalog();
   loadEmojiReadings();
+  loadEmojiSounds();
+  loadEmojiSoundVolumes();
   loadTtsReplacements();
   loadTtsNgWords();
   loadChatgptTriggerKeywords();
@@ -240,6 +246,96 @@ function saveEmojiReadings() {
   setSetting("emojiReadings", JSON.stringify(obj));
 }
 
+function loadEmojiSounds() {
+  state.emojiSounds = new Map();
+  const raw = localStorage.getItem("emojiSounds");
+  if (!raw) return;
+  try {
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj !== "object") return;
+    for (const [k, v] of Object.entries(obj)) {
+      const code = normalizeEmojiShortcode(k);
+      const p = String(v || "").trim();
+      if (!code) continue;
+      if (!p) continue;
+      state.emojiSounds.set(code, p);
+    }
+  } catch (_) {}
+}
+
+function saveEmojiSounds() {
+  const obj = Object.fromEntries(state.emojiSounds.entries());
+  setSetting("emojiSounds", JSON.stringify(obj));
+}
+
+function loadEmojiSoundVolumes() {
+  state.emojiSoundVolumes = new Map();
+  const raw = localStorage.getItem("emojiSoundVolumes");
+  if (!raw) return;
+  try {
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj !== "object") return;
+    for (const [k, v] of Object.entries(obj)) {
+      const code = normalizeEmojiShortcode(k);
+      const n = Number.parseFloat(String(v));
+      if (!code) continue;
+      if (!Number.isFinite(n)) continue;
+      state.emojiSoundVolumes.set(code, clampNumber(n, 0.0, 1.0, 1.0));
+    }
+  } catch (_) {}
+}
+
+function saveEmojiSoundVolumes() {
+  const obj = Object.fromEntries(state.emojiSoundVolumes.entries());
+  setSetting("emojiSoundVolumes", JSON.stringify(obj));
+}
+
+function setEmojiSoundVolume(shortcode, volume) {
+  const code = normalizeEmojiShortcode(shortcode);
+  if (!code) return;
+  const v = clampNumber(volume, 0.0, 1.0, 1.0);
+  state.emojiSoundVolumes.set(code, v);
+  saveEmojiSoundVolumes();
+}
+
+function getEmojiSoundVolume(shortcode) {
+  const code = normalizeEmojiShortcode(shortcode);
+  const v = state.emojiSoundVolumes.get(code);
+  return clampNumber(v, 0.0, 1.0, 1.0);
+}
+
+function cleanupEmojiSoundCacheForPath(filePath) {
+  const p = String(filePath || "").trim();
+  if (!p) return;
+  for (const v of state.emojiSounds.values()) {
+    if (String(v || "").trim() === p) return; // still referenced
+  }
+  const cached = emojiSoundCache.get(p);
+  if (cached?.url) {
+    try {
+      URL.revokeObjectURL(cached.url);
+    } catch (_) {}
+  }
+  emojiSoundCache.delete(p);
+}
+
+function setEmojiSoundPath(shortcode, filePath) {
+  const code = normalizeEmojiShortcode(shortcode);
+  if (!code) return;
+  const prev = state.emojiSounds.get(code) || "";
+  const p = String(filePath || "").trim();
+  if (!p) state.emojiSounds.delete(code);
+  else state.emojiSounds.set(code, p);
+  saveEmojiSounds();
+  if (prev && prev !== p) cleanupEmojiSoundCacheForPath(prev);
+}
+
+function basename(p) {
+  const s = String(p || "");
+  const parts = s.split(/[\\/]/);
+  return parts.length ? parts[parts.length - 1] : s;
+}
+
 function upsertSeenEmoji(shortcode, url) {
   const code = normalizeEmojiShortcode(shortcode);
   if (!code) return false;
@@ -268,6 +364,8 @@ function renderEmojiSettingsList() {
     .map(([code, info]) => {
       const url = String(info?.url || "").trim();
       const reading = state.emojiReadings.get(code) || "";
+      const soundPath = state.emojiSounds.get(code) || "";
+      const soundVol = getEmojiSoundVolume(code);
       const img = url
         ? `<img class="emojiThumb" src="${escapeHtml(url)}" alt="${escapeHtml(code)}" />`
         : `<div class="emojiThumb"></div>`;
@@ -278,6 +376,35 @@ function renderEmojiSettingsList() {
           <input class="emojiReadingInput" type="text" placeholder="読み方（例: こもち）" value="${escapeHtml(
             reading
           )}" data-action="emoji-reading" data-emoji="${escapeHtml(code)}" />
+          <div class="emojiSoundBox">
+            <div class="emojiSoundPath" title="${escapeHtml(soundPath)}">${escapeHtml(
+              soundPath ? basename(soundPath) : "効果音: 未設定"
+            )}</div>
+            <div class="emojiSoundVolumeRow">
+              <input
+                class="emojiSoundVolumeRange range"
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value="${escapeHtml(String(soundVol))}"
+                data-emoji="${escapeHtml(code)}"
+                ${soundPath ? "" : "disabled"}
+              />
+              <span class="emojiSoundVolumeValue rangeValue">${escapeHtml(String(Math.round(soundVol * 100)))}%</span>
+            </div>
+            <div class="emojiSoundBtns">
+              <button class="miniBtn" type="button" data-action="emoji-sound-pick" data-emoji="${escapeHtml(
+                code
+              )}">選ぶ</button>
+              <button class="miniBtn" type="button" data-action="emoji-sound-play" data-emoji="${escapeHtml(
+                code
+              )}" ${soundPath ? "" : "disabled"}>再生</button>
+              <button class="miniBtn danger" type="button" data-action="emoji-sound-clear" data-emoji="${escapeHtml(
+                code
+              )}" ${soundPath ? "" : "disabled"}>解除</button>
+            </div>
+          </div>
         </div>
       `;
     })
@@ -614,9 +741,8 @@ function clearTtsQueue() {
   state.currentAudio = null;
 }
 
-function shouldProcessComment(comment, receivedAtMs) {
+function shouldAcceptComment(comment, receivedAtMs) {
   if (!comment) return false;
-  if (!state.voicevoxAvailable) return false;
 
   const commentTs =
     Number.isFinite(comment.timestamp_ms) && comment.timestamp_ms > 0
@@ -633,7 +759,7 @@ function shouldProcessComment(comment, receivedAtMs) {
 }
 
 function enqueueSpeakComment(comment, receivedAtMs) {
-  if (!shouldProcessComment(comment, receivedAtMs)) return;
+  if (!shouldAcceptComment(comment, receivedAtMs)) return;
 
   const myGen = state.ttsGeneration;
   state.ttsChain = state.ttsChain
@@ -641,25 +767,33 @@ function enqueueSpeakComment(comment, receivedAtMs) {
     .then(async () => {
       // Re-check right before speaking (settings might have changed while queued).
       if (myGen !== state.ttsGeneration) return;
-      if (!shouldProcessComment(comment, receivedAtMs)) return;
+      if (!shouldAcceptComment(comment, receivedAtMs)) return;
 
       const ttsSpeakerStyleId = getSelectedTtsSpeakerStyleId();
       const speechText = buildTtsText(comment);
 
       const triggerKw = findChatgptTriggerKeyword(getTriggerCommentText(comment));
       const canChatgpt =
+        state.voicevoxAvailable &&
         Boolean(triggerKw) &&
         Boolean(comment?.id) &&
         !state.respondedIds.has(comment.id) &&
         Boolean(state.openaiApiKey) &&
         Boolean(getSelectedChatgptSpeakerStyleId());
 
-      const canSpeak = Boolean(ttsSpeakerStyleId && speechText);
-      if (!canSpeak && !canChatgpt) return;
+      const canSpeak = state.voicevoxAvailable && Boolean(ttsSpeakerStyleId && speechText);
+      const sound = getEmojiSoundFromComment(comment);
+      const canSound = Boolean(sound?.path);
+      if (!canSound && !canSpeak && !canChatgpt) return;
 
       const abortCtrl = new AbortController();
       state.ttsAbortControllers.add(abortCtrl);
       try {
+        if (canSound) {
+          await playSoundFile(sound.path, sound.volume, abortCtrl.signal);
+          if (myGen !== state.ttsGeneration || abortCtrl.signal.aborted) return;
+        }
+
         if (canSpeak) {
           const wav = await voicevoxSynthesizeWav(
             speechText,
@@ -942,6 +1076,80 @@ function normalizeForEmojiMatch(text) {
     .replace(/\p{Emoji_Modifier}/gu, ""); // skin tone modifiers etc.
 }
 
+const emojiSoundCache = new Map(); // path => { url, mime, base64 }
+
+function base64ToUint8Array(base64) {
+  const bin = atob(String(base64 || ""));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+async function getSoundUrlForPath(filePath) {
+  const p = String(filePath || "").trim();
+  if (!p) return "";
+  const cached = emojiSoundCache.get(p);
+  if (cached && cached.url) return cached.url;
+  if (!window.chatApi?.readMediaFileBase64) throw new Error("readMediaFileBase64 is not available");
+  const res = await window.chatApi.readMediaFileBase64(p);
+  if (!res || !res.ok) throw new Error(res?.error || "failed to read media file");
+  const bytes = base64ToUint8Array(res.base64 || "");
+  const mime = String(res.mime || "application/octet-stream");
+  const blob = new Blob([bytes], { type: mime });
+  const url = URL.createObjectURL(blob);
+  emojiSoundCache.set(p, { url, mime });
+  return url;
+}
+
+async function playSoundFile(filePath, volume, signal) {
+  const url = await getSoundUrlForPath(filePath);
+  if (!url) return;
+  const audio = new Audio(url);
+  audio.preload = "auto";
+  audio.volume = clampNumber(volume, 0.0, 1.0, 1.0);
+
+  const onAbort = () => {
+    try {
+      audio.pause();
+      audio.currentTime = 0;
+    } catch (_) {}
+    try {
+      audio.src = "";
+    } catch (_) {}
+  };
+  if (signal) {
+    if (signal.aborted) onAbort();
+    else signal.addEventListener("abort", onAbort, { once: true });
+  }
+
+  await audio.play();
+  await new Promise((resolve) => {
+    audio.addEventListener("ended", resolve, { once: true });
+    audio.addEventListener("error", resolve, { once: true });
+  });
+}
+
+function getEmojiSoundFromComment(comment) {
+  if (!comment || !Array.isArray(comment.parts)) return null;
+  for (const p of comment.parts) {
+    if (!p || p.type !== "emoji") continue;
+    const candidates = [];
+    if (p.alt) candidates.push(String(p.alt));
+    if (p.emojiId) candidates.push(String(p.emojiId));
+    if (Array.isArray(p.shortcuts)) {
+      for (const s of p.shortcuts) candidates.push(String(s || ""));
+    }
+    for (const c of candidates) {
+      const key = normalizeEmojiShortcode(c);
+      const hitPath = state.emojiSounds.get(key);
+      if (hitPath) {
+        return { path: hitPath, volume: getEmojiSoundVolume(key) };
+      }
+    }
+  }
+  return null;
+}
+
 function plainTextFromParts(parts) {
   const arr = Array.isArray(parts) ? parts : [];
   let out = "";
@@ -1145,10 +1353,53 @@ feedEl?.addEventListener("input", (e) => {
 
 emojiSettingsListEl?.addEventListener("input", (e) => {
   const el = e.target;
+  if (el?.classList?.contains("emojiSoundVolumeRange")) {
+    const code = String(el.dataset.emoji || "").trim();
+    if (!code) return;
+    const v = clampNumber(Number.parseFloat(String(el.value)), 0.0, 1.0, 1.0);
+    setEmojiSoundVolume(code, v);
+    scheduleSettingsAutoSave();
+    const row = el.closest(".emojiRow");
+    const out = row?.querySelector?.(".emojiSoundVolumeValue");
+    if (out) out.textContent = `${Math.round(v * 100)}%`;
+    return;
+  }
   if (!el || !el.classList || !el.classList.contains("emojiReadingInput")) return;
   const code = String(el.dataset.emoji || "").trim();
   setEmojiReading(code, el.value);
   scheduleSettingsAutoSave();
+});
+
+emojiSettingsListEl?.addEventListener("click", async (e) => {
+  const btn = e.target?.closest?.("button");
+  if (!btn) return;
+  const action = String(btn.dataset.action || "");
+  const code = String(btn.dataset.emoji || "").trim();
+  if (!code) return;
+
+  if (action === "emoji-sound-pick") {
+    try {
+      const res = await window.chatApi.pickSoundFile?.();
+      if (!res || !res.ok) return;
+      setEmojiSoundPath(code, res.path || "");
+      scheduleSettingsAutoSave();
+      renderEmojiSettingsList();
+    } catch (err) {
+      console.error("emoji sound pick error:", err);
+    }
+  } else if (action === "emoji-sound-play") {
+    try {
+      const p = state.emojiSounds.get(code) || "";
+      if (!p) return;
+      await playSoundFile(p, getEmojiSoundVolume(code));
+    } catch (err) {
+      console.error("emoji sound play error:", err);
+    }
+  } else if (action === "emoji-sound-clear") {
+    setEmojiSoundPath(code, "");
+    scheduleSettingsAutoSave();
+    renderEmojiSettingsList();
+  }
 });
 
 saveInputBtn?.addEventListener("click", () => {
@@ -1410,6 +1661,8 @@ window.chatApi.onStopped(() => {
   loadAuthorAliases();
   loadEmojiCatalog();
   loadEmojiReadings();
+  loadEmojiSounds();
+  loadEmojiSoundVolumes();
   renderEmojiSettingsList();
   await window.chatApi.settingsEnsureFile?.();
   await window.chatApi.settingsGetPath?.().then((res) => {

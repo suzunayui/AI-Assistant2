@@ -404,7 +404,7 @@ body {
 
 .emojiRow {
   display: grid;
-  grid-template-columns: 28px 1fr 200px;
+  grid-template-columns: 28px 1fr 200px 260px;
   gap: 10px;
   align-items: center;
   padding: 10px;
@@ -440,4 +440,31 @@ body {
 .emojiReadingInput:focus {
   border-color: rgba(110, 168, 255, 0.55);
   box-shadow: 0 0 0 3px rgba(110, 168, 255, 0.12);
+}
+
+.emojiSoundBox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.emojiSoundPath {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.emojiSoundBtns {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.emojiSoundVolumeRow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }

@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld("chatApi", {
   isRunning: () => ipcRenderer.invoke("chat:isRunning"),
   getRecent: (limit) => ipcRenderer.invoke("chat:getRecent", limit),
   getVoicevoxSpeakers: () => ipcRenderer.invoke("voicevox:getSpeakers"),
+  pickSoundFile: () => ipcRenderer.invoke("media:pickSound"),
+  readMediaFileBase64: (filePath) => ipcRenderer.invoke("media:readFileBase64", filePath),
   openaiRespond: (apiKey, prompt, persona) =>
     ipcRenderer.invoke("openai:respond", { apiKey, prompt, persona }),
   settingsEnsureFile: () => ipcRenderer.invoke("settings:ensureFile"),
