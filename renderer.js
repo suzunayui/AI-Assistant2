@@ -32,6 +32,7 @@ const openSettingsFolderBtn = document.getElementById("openSettingsFolder");
 const exportSettingsBtn = document.getElementById("exportSettings");
 const importSettingsBtn = document.getElementById("importSettings");
 const inputEl = document.getElementById("inputStr");
+const inputTwitchEl = document.getElementById("inputTwitch");
 const saveInputBtn = document.getElementById("saveInputBtn");
 const startBtn = document.getElementById("startBtn");
 const stopBtn = document.getElementById("stopBtn");
@@ -90,6 +91,7 @@ const SETTINGS_KEYS = [
   "chatgptPersona",
   "chatgptTriggerKeywords",
   "savedInputStr",
+  "savedInputStrTwitch",
   "blockedAuthors",
   "authorAliases",
   "ttsWordReplacements",
@@ -1308,14 +1310,26 @@ async function loadRecent() {
 }
 
 async function start() {
-  let inputStr = inputEl.value.trim();
-  if (!inputStr) {
+  let youtubeInput = inputEl.value.trim();
+  let twitchInput = inputTwitchEl?.value?.trim() || "";
+  if (!youtubeInput) {
     const saved = localStorage.getItem("savedInputStr") || "";
     if (saved) {
-      inputStr = saved;
+      youtubeInput = saved;
       inputEl.value = saved;
     }
   }
+  if (!twitchInput && inputTwitchEl) {
+    const savedTw = localStorage.getItem("savedInputStrTwitch") || "";
+    if (savedTw) {
+      twitchInput = savedTw;
+      inputTwitchEl.value = savedTw;
+    }
+  }
+  const targets = [];
+  if (youtubeInput) targets.push(youtubeInput);
+  if (twitchInput) targets.push(twitchInput);
+  const inputStr = targets.join(", ");
   if (!inputStr) {
     setStatus("入力してください", "error");
     return;
@@ -1342,6 +1356,9 @@ async function stop() {
 startBtn.addEventListener("click", () => start().catch((e) => setStatus(String(e), "error")));
 stopBtn.addEventListener("click", () => stop().catch((e) => setStatus(String(e), "error")));
 inputEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") start().catch((err) => setStatus(String(err), "error"));
+});
+inputTwitchEl?.addEventListener("keydown", (e) => {
   if (e.key === "Enter") start().catch((err) => setStatus(String(err), "error"));
 });
 limitEl.addEventListener("change", () => loadRecent().catch((e) => console.error(e)));
@@ -1419,13 +1436,15 @@ emojiSettingsListEl?.addEventListener("click", async (e) => {
 });
 
 saveInputBtn?.addEventListener("click", () => {
-  const v = inputEl.value.trim();
-  if (!v) {
+  const yt = inputEl.value.trim();
+  const tw = inputTwitchEl?.value?.trim() || "";
+  if (!yt && !tw) {
     setStatus("保存する値が空です", "error");
     return;
   }
-  setSetting("savedInputStr", v);
-  setStatus("入力を保存しました", "idle");
+  setSetting("savedInputStr", yt);
+  setSetting("savedInputStrTwitch", tw);
+  setStatus("入力欄を保存しました", "idle");
 });
 
 window.chatApi.onDbPath(({ dbPath }) => {
@@ -1695,6 +1714,8 @@ window.chatApi.onStopped(() => {
   await refreshDbPath();
   const savedInputStr = localStorage.getItem("savedInputStr") || "";
   if (savedInputStr && inputEl && !inputEl.value) inputEl.value = savedInputStr;
+  const savedInputStrTwitch = localStorage.getItem("savedInputStrTwitch") || "";
+  if (savedInputStrTwitch && inputTwitchEl && !inputTwitchEl.value) inputTwitchEl.value = savedInputStrTwitch;
   const { running } = await window.chatApi.isRunning();
   state.running = Boolean(running);
   setButtons();

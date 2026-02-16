@@ -557,7 +557,7 @@ async function fetchChatOnce(apiKey, clientVersion, continuation) {
     const msgId = String(rawId || `${timestampMs}_${author}_${textPlain}_${idx}`);
 
     chatItems.push({
-      id: msgId,
+      id: `yt:${msgId}`,
       colors: superColors,
       author,
       icon: iconUrl,        // ★ アイコンURLを追加
@@ -568,6 +568,7 @@ async function fetchChatOnce(apiKey, clientVersion, continuation) {
       kind: msgType,        // "text", "paid", "sticker", "membership", "gift_purchase", "gift_redeem"
       amount: amountValue,  // int or null
       amount_text: amountText,
+      source: "youtube",
     });
   }
 
@@ -657,7 +658,8 @@ async function startLiveChat(inputStr) {
         continuation = nextCont;
 
         for (const msg of chatItems) {
-          msg.video_id = videoId;
+          msg.video_id = `youtube:${videoId}`;
+          if (!msg.source) msg.source = "youtube";
           pushComment(msg);
         }
 

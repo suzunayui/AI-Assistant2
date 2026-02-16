@@ -34,13 +34,21 @@
       </nav>
 
       <section id="tab-controls" class="controls">
-        <label class="label" for="inputStr">動画ID / @handle / チャンネルID</label>
+        <label class="label" for="inputStr">YouTube入力</label>
         <div class="row">
           <input
             id="inputStr"
             class="input"
             type="text"
-            placeholder="例: dQw4w9WgXcQ / @handle / UCxxxxxxxx..."
+            placeholder="例: dQw4w9WgXcQ / @ytHandle / UCxxxxxxxx..."
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <input
+            id="inputTwitch"
+            class="input"
+            type="text"
+            placeholder="Twitch 例: tw:shroud / twitch.tv/shroud / shroud"
             autocomplete="off"
             spellcheck="false"
           />
