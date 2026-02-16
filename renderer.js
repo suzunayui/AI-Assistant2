@@ -10,6 +10,7 @@ const voicevoxSpeedTtsEl = document.getElementById("voicevoxSpeedTts");
 const voicevoxSpeedTtsValueEl = document.getElementById("voicevoxSpeedTtsValue");
 const voicevoxVolumeTtsEl = document.getElementById("voicevoxVolumeTts");
 const voicevoxVolumeTtsValueEl = document.getElementById("voicevoxVolumeTtsValue");
+const ttsReadAuthorNameEl = document.getElementById("ttsReadAuthorName");
 const voicevoxSpeedChatgptEl = document.getElementById("voicevoxSpeedChatgpt");
 const voicevoxSpeedChatgptValueEl = document.getElementById("voicevoxSpeedChatgptValue");
 const voicevoxVolumeChatgptEl = document.getElementById("voicevoxVolumeChatgpt");
@@ -82,6 +83,7 @@ const SETTINGS_KEYS = [
   "voicevoxSpeakerChatgpt",
   "voicevoxSpeedTts",
   "voicevoxVolumeTts",
+  "ttsReadAuthorName",
   "voicevoxSpeedChatgpt",
   "voicevoxVolumeChatgpt",
   "openaiApiKey",
@@ -152,6 +154,7 @@ function applySettingsSnapshot(data) {
   loadEmojiSoundVolumes();
   loadTtsReplacements();
   loadTtsNgWords();
+  loadTtsReadAuthorName();
   loadChatgptTriggerKeywords();
   loadOpenAiApiKey();
   loadChatgptPersona();
@@ -623,6 +626,18 @@ function getVoicevoxChatgptVoiceParams() {
   };
 }
 
+function isTtsReadAuthorNameEnabled() {
+  const raw = String(localStorage.getItem("ttsReadAuthorName") || "").trim().toLowerCase();
+  return raw !== "0" && raw !== "false";
+}
+
+function loadTtsReadAuthorName() {
+  if (localStorage.getItem("ttsReadAuthorName") === null) {
+    setSetting("ttsReadAuthorName", "1");
+  }
+  if (ttsReadAuthorNameEl) ttsReadAuthorNameEl.checked = isTtsReadAuthorNameEnabled();
+}
+
 function buildTtsText(comment) {
   const author = getSpeakName(comment?.author);
   const rawText = getRawCommentText(comment).trim();
@@ -632,6 +647,7 @@ function buildTtsText(comment) {
   const text = cleaned.trim();
   if (!text) return "";
   if (text === "[STICKER]") return "";
+  if (!isTtsReadAuthorNameEnabled()) return text;
   if (author) return `${author}さん、${text}`;
   return text;
 }
@@ -1531,6 +1547,12 @@ window.chatApi.onStopped(() => {
     const raw = String(ttsNgWordsEl?.value || "");
     setSetting("ttsNgWords", raw);
     loadTtsNgWords();
+  });
+
+  loadTtsReadAuthorName();
+  ttsReadAuthorNameEl?.addEventListener("change", () => {
+    setSetting("ttsReadAuthorName", ttsReadAuthorNameEl?.checked ? "1" : "0");
+    loadTtsReadAuthorName();
   });
 
   function setLoading() {
