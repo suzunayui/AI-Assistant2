@@ -3,7 +3,7 @@
   "private": true,
   "type": "commonjs",
   "main": "main.js",
-  "version": "2026.2.17",
+  "version": "2026.10.28",
   "engines": {
     "node": ">=18"
   },

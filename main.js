@@ -281,7 +281,9 @@ ipcMain.handle("openai:respond", async (_evt, payload) => {
       (persona ? `\n\n【性格/口調】\n${persona}` : "");
 
     const body = {
-      model: "gpt-4.1-nano",
+      model: "gpt-6-luna",
+      // Keep short live-chat replies fast without additional reasoning tokens.
+      reasoning: { effort: "none" },
       input: [
         {
           role: "system",

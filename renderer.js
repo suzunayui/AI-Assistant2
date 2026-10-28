@@ -68,6 +68,7 @@ const state = {
   emojiSoundVolumes: new Map(), // shortcode => 0..1
   appStartedAt: Date.now(),
   voicevoxAvailable: false,
+  voicevoxSpeakersReady: Promise.resolve(),
   ttsChain: Promise.resolve(),
   ttsGeneration: 0,
   ttsAbortControllers: new Set(),
@@ -669,7 +670,7 @@ async function voicevoxSynthesizeWav(text, speakerStyleId, voiceParams, signal) 
   const qResp = await fetchWithTimeout(
     qUrl,
     { method: "POST", headers: { Accept: "application/json" } },
-    2500,
+    10000,
     signal
   );
   if (!qResp.ok) throw new Error(`audio_query failed: ${qResp.status}`);
@@ -783,6 +784,11 @@ function enqueueSpeakComment(comment, receivedAtMs) {
   state.ttsChain = state.ttsChain
     .catch(() => {}) // keep the chain alive
     .then(async () => {
+      // A first comment can arrive while the initial speaker request is pending.
+      await state.voicevoxSpeakersReady;
+      if (!state.voicevoxAvailable) {
+        state.voicevoxAvailable = await checkVoicevoxAvailableOnce();
+      }
       // Re-check right before speaking (settings might have changed while queued).
       if (myGen !== state.ttsGeneration) return;
       if (!shouldAcceptComment(comment, receivedAtMs)) return;
@@ -797,9 +803,9 @@ function enqueueSpeakComment(comment, receivedAtMs) {
         Boolean(comment?.id) &&
         !state.respondedIds.has(comment.id) &&
         Boolean(state.openaiApiKey) &&
-        Boolean(getSelectedChatgptSpeakerStyleId());
+        getSelectedChatgptSpeakerStyleId() !== null;
 
-      const canSpeak = state.voicevoxAvailable && Boolean(ttsSpeakerStyleId && speechText);
+      const canSpeak = state.voicevoxAvailable && ttsSpeakerStyleId !== null && Boolean(speechText);
       const sound = getEmojiSoundFromComment(comment);
       const canSound = Boolean(sound?.path);
       if (!canSound && !canSpeak && !canChatgpt) return;
@@ -813,21 +819,25 @@ function enqueueSpeakComment(comment, receivedAtMs) {
         }
 
         if (canSpeak) {
-          const wav = await voicevoxSynthesizeWav(
-            speechText,
-            ttsSpeakerStyleId,
-            getVoicevoxTtsVoiceParams(),
-            abortCtrl.signal
-          );
-          if (myGen !== state.ttsGeneration || abortCtrl.signal.aborted) return;
-          await playWavArrayBuffer(wav, abortCtrl.signal);
+          try {
+            const wav = await voicevoxSynthesizeWav(
+              speechText,
+              ttsSpeakerStyleId,
+              getVoicevoxTtsVoiceParams(),
+              abortCtrl.signal
+            );
+            if (myGen !== state.ttsGeneration || abortCtrl.signal.aborted) return;
+            await playWavArrayBuffer(wav, abortCtrl.signal);
+          } catch (e) {
+            console.error("VOICEVOX comment TTS error:", e);
+          }
           if (myGen !== state.ttsGeneration || abortCtrl.signal.aborted) return;
         }
 
         if (!canChatgpt) return;
 
         const chatgptSpeakerStyleId = getSelectedChatgptSpeakerStyleId();
-        if (!chatgptSpeakerStyleId) return;
+        if (chatgptSpeakerStyleId === null) return;
 
         state.respondedIds.add(comment.id);
         const prompt = buildChatgptPrompt(comment);
@@ -1580,7 +1590,14 @@ window.chatApi.onStopped(() => {
     if (voicevoxSpeakerChatgptEl) voicevoxSpeakerChatgptEl.innerHTML = loadingOpt;
   }
 
-  async function refreshVoicevoxSpeakers() {
+  function refreshVoicevoxSpeakers() {
+    const ready = loadVoicevoxSpeakers();
+    // Keep readiness awaitable even when a request fails; callers still receive the error.
+    state.voicevoxSpeakersReady = ready.catch(() => {});
+    return ready;
+  }
+
+  async function loadVoicevoxSpeakers() {
     if (!voicevoxSpeakerTtsEl && !voicevoxSpeakerChatgptEl) return;
     setLoading();
     if (voicevoxStatusEl) voicevoxStatusEl.textContent = "";
